@@ -1,0 +1,80 @@
+import Foundation
+import SwiftData
+import Observation
+import UniformTypeIdentifiers
+
+@available(iOS 26, *)
+@Observable
+final class DashboardViewModel {
+
+    // MARK: - Import sheet state
+
+    var isShowingFilePicker = false
+    var errorTitle   = ""
+    var errorMessage = ""
+    var isShowingError = false
+
+    // MARK: - Actions
+
+    func requestImport() {
+        isShowingFilePicker = true
+    }
+
+    /// Handles the URL from `.fileImporter`, inserts a new StudyModule, and
+    /// returns it so the caller can navigate to ProcessingView immediately.
+    @discardableResult
+    func handlePickerResult(
+        _ result: Result<URL, any Error>,
+        context: ModelContext
+    ) -> StudyModule? {
+        switch result {
+        case .failure(let error):
+            showError("Import failed", error.localizedDescription)
+            return nil
+        case .success(let url):
+            return createModule(from: url, context: context)
+        }
+    }
+
+    func delete(_ module: StudyModule, context: ModelContext) {
+        context.delete(module)
+        do {
+            try context.save()
+        } catch {
+            showError("Delete failed", error.localizedDescription)
+        }
+    }
+
+    // MARK: - Private
+
+    private func createModule(from url: URL, context: ModelContext) -> StudyModule? {
+        let secured = url.startAccessingSecurityScopedResource()
+        defer { if secured { url.stopAccessingSecurityScopedResource() } }
+
+        let name = url
+            .deletingPathExtension()
+            .lastPathComponent
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+
+        let module = StudyModule(
+            title: name.isEmpty ? "Untitled" : name,
+            status: .importing
+        )
+        context.insert(module)
+
+        do {
+            try context.save()
+            return module
+        } catch {
+            showError("Could not save", error.localizedDescription)
+            return nil
+        }
+    }
+
+    private func showError(_ title: String, _ message: String) {
+        errorTitle    = title
+        errorMessage  = message
+        isShowingError = true
+    }
+}
