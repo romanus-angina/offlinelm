@@ -1,0 +1,10 @@
+# Xcode generated — never commit these
+PodNotes.swiftpm/.swiftpm/
+*.xcworkspace
+xcuserdata/
+
+# Build artifacts
+.build/
+
+# macOS
+.DS_Store
