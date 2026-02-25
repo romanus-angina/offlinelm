@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Xcode generated — never commit these
 PodNotes.swiftpm/.swiftpm/
 *.xcworkspace
@@ -7,4 +8,6 @@ xcuserdata/
 .build/
 
 # macOS
+=======
+>>>>>>> 3907d64 (Update .gitignore with .DS_Store)
 .DS_Store
