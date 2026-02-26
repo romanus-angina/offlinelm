@@ -161,7 +161,7 @@ struct GenerationService: Sendable {
 
         do {
             let response = try await session.respond(to: prompt, generating: TopicList.self)
-            return response
+            return response.content
         } catch let error as LanguageModelSession.GenerationError {
             throw mapSessionError(error, chunkIndex: chunk.order)
         } catch {
@@ -183,10 +183,11 @@ struct GenerationService: Sendable {
 
         do {
             let response = try await session.respond(to: prompt, generating: PodcastScript.self)
-            guard !response.turns.isEmpty else {
+            let script = response.content
+            guard !script.turns.isEmpty else {
                 throw GenerationError.emptyOutput(chunkIndex: chunkIndex)
             }
-            return response
+            return script
         } catch let error as GenerationError {
             throw error
         } catch let error as LanguageModelSession.GenerationError {
@@ -209,10 +210,11 @@ struct GenerationService: Sendable {
 
         do {
             let response = try await session.respond(to: prompt, generating: SlideSet.self)
-            guard !response.slides.isEmpty else {
+            let slides = response.content
+            guard !slides.slides.isEmpty else {
                 throw GenerationError.emptyOutput(chunkIndex: chunkIndex)
             }
-            return response
+            return slides
         } catch let error as GenerationError {
             throw error
         } catch let error as LanguageModelSession.GenerationError {
@@ -250,3 +252,4 @@ struct GenerationService: Sendable {
         return "<speak><prosody rate=\"medium\">\(escaped)</prosody></speak>"
     }
 }
+
