@@ -3,7 +3,7 @@ import SwiftUI
 @available(iOS 26, *)
 struct PromptTestRunnerView: View {
 
-    @State private var results: [PromptTemplateTests.TestResult] = []
+    @State private var results: [(suite: String, tests: [RunnerTestResult])] = []
     @State private var hasRun = false
 
     var body: some View {
@@ -11,14 +11,15 @@ struct PromptTestRunnerView: View {
             List {
                 if !hasRun {
                     Section {
-                        Text("Tap Run to execute all prompt template tests.")
+                        Text("Tap Run to execute all test suites.")
                             .foregroundStyle(AppTheme.Colors.textSecondary)
                     }
                 }
 
-                if hasRun {
-                    Section("Results: \(passCount)/\(results.count) passed") {
-                        ForEach(results, id: \.name) { result in
+                ForEach(results, id: \.suite) { group in
+                    let passed = group.tests.filter(\.passed).count
+                    Section("\(group.suite) — \(passed)/\(group.tests.count)") {
+                        ForEach(group.tests, id: \.name) { result in
                             HStack(alignment: .top, spacing: AppTheme.Spacing.sm) {
                                 Image(systemName: result.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
                                     .foregroundStyle(result.passed ? AppTheme.Colors.statusReady : AppTheme.Colors.statusFailed)
@@ -38,19 +39,32 @@ struct PromptTestRunnerView: View {
             }
             .scrollContentBackground(.hidden)
             .background(AppTheme.Colors.backgroundPrimary)
-            .navigationTitle("Prompt Tests")
+            .navigationTitle("Test Runner")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Run") {
-                        results = PromptTemplateTests.runAll()
-                        hasRun = true
-                    }
+                    Button("Run") { runAllSuites() }
                 }
             }
         }
     }
 
-    private var passCount: Int {
-        results.filter(\.passed).count
+    private func runAllSuites() {
+        let promptResults = PromptTemplateTests.runAll().map { r in
+            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
+        }
+        let fallbackResults = FallbackGeneratorTests.runAll().map { r in
+            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
+        }
+        results = [
+            (suite: "PromptTemplates", tests: promptResults),
+            (suite: "FallbackGenerator", tests: fallbackResults)
+        ]
+        hasRun = true
     }
+}
+
+struct RunnerTestResult: Sendable {
+    let name: String
+    let passed: Bool
+    let detail: String
 }
