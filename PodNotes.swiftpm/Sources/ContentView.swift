@@ -7,26 +7,7 @@ struct ContentView: View {
     @State private var router = AppRouter()
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $router.columnVisibility) {
-            DashboardView()
-                .environment(router)
-                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 500)
-        } detail: {
-            Group {
-                switch router.destination {
-                case .none:
-                    detailPlaceholder
-                case .processing(let module):
-                    ProcessingView(module: module)
-                case .podcast(let module):
-                    PodcastPlayerView(module: module)
-                case .slides(let module):
-                    SlidesView(module: module)
-                }
-            }
-            .environment(router)
-        }
-        .navigationSplitViewStyle(.balanced)
+        IngestionDebugView()
     }
 
     private var detailPlaceholder: some View {
