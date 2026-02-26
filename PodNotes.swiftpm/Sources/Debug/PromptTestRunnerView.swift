@@ -55,7 +55,11 @@ struct PromptTestRunnerView: View {
         let fallbackResults = FallbackGeneratorTests.runAll().map { r in
             RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
         }
+        let ssmlResults = SSMLBuilderTests.runAll().map { r in
+            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
+        }
         results = [
+            (suite: "SSMLBuilder",    tests: ssmlResults), 
             (suite: "PromptTemplates", tests: promptResults),
             (suite: "FallbackGenerator", tests: fallbackResults)
         ]
