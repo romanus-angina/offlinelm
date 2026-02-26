@@ -58,9 +58,13 @@ struct PromptTestRunnerView: View {
         let ssmlResults = SSMLBuilderTests.runAll().map { r in
             RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
         }
+        let speechResults = SpeechServiceTests.runAll().map { r in
+            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
+        }
         results = [
-            (suite: "SSMLBuilder",    tests: ssmlResults), 
-            (suite: "PromptTemplates", tests: promptResults),
+            (suite: "SpeechService",    tests: speechResults),
+            (suite: "SSMLBuilder",      tests: ssmlResults),
+            (suite: "PromptTemplates",  tests: promptResults),
             (suite: "FallbackGenerator", tests: fallbackResults)
         ]
         hasRun = true
