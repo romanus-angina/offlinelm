@@ -1,5 +1,14 @@
 import Foundation
 
+// These tests validate all state transitions and edge cases that can be
+// exercised without a running AVSpeechSynthesizer. They call load(), play(),
+// pause(), resume(), skipForward(), skipBackward() and then inspect the
+// @Observable state properties directly.
+//
+// What these tests CANNOT cover (requires manual SpeechDebugView testing):
+//   - AVSpeechSynthesizerDelegate callbacks (didFinish, willSpeakRange, didCancel)
+//   - Actual audio output and voice selection
+//   - Background resign/foreground notifications
 @available(iOS 26, *)
 enum SpeechServiceTests {
 

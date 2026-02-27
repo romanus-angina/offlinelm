@@ -35,23 +35,18 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
 
     private let synthesizer = AVSpeechSynthesizer()
 
-    // Sorted segments loaded by the most recent load() call.
     private var segments: [DialogueSegment] = []
 
-    // Voice assignments, Set at init
     private let voiceForHostA: AVSpeechSynthesisVoice?
     private let voiceForHostB: AVSpeechSynthesisVoice?
 
-    // Tracks whether a didCancel callback belongs to a skip navigation
     private var isNavigatingViaSkip = false
 
-    // Tracks elapsed playback time across segments.
     private var playbackStartDate: Date?
     private var accumulatedSeconds: TimeInterval = 0
 
-    // Notification observers
-    private var resignObserver:   NSObjectProtocol?
-    private var becomeObserver:   NSObjectProtocol?
+    private var resignObserver: NSObjectProtocol?
+    private var becomeObserver: NSObjectProtocol?
 
     // MARK: - Init / deinit
 
@@ -61,7 +56,12 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         voiceForHostB = b
         super.init()
         synthesizer.delegate = self
+        configureAudioSession()
         registerBackgroundNotifications()
+
+        #if DEBUG
+        Self.logVoiceDiagnostics(hostA: a, hostB: b)
+        #endif
     }
 
     deinit {
@@ -71,8 +71,6 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
 
     // MARK: - Load
 
-    /// Accepts a new dialogue array and resets all playback state.
-    /// Safe to call while audio is playing — stops any current utterance first.
     func load(_ newSegments: [DialogueSegment]) {
         stopSpeakingAndReset()
         segments = newSegments.sorted()
@@ -145,10 +143,6 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         let text = segments[safe: currentSegmentIndex]?.plainText ?? ""
         guard !text.isEmpty else { return }
 
-        // The delegate fires with an NSRange into utterance.speechString.
-        // When SSML is used, speechString is the stripped plain text, which
-        // may differ slightly from segment.plainText hence map the range onto
-        // segment.plainText directly
         guard
             let range = Range(characterRange, in: text),
             range.upperBound <= text.endIndex
@@ -161,8 +155,6 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         _ synthesizer: AVSpeechSynthesizer,
         didFinish utterance: AVSpeechUtterance
     ) {
-        // didCancel fires first when a skip is in progress
-        //  didFinish only fires for natural completion.
         guard playbackState == .playing else { return }
 
         let completedIndex = currentSegmentIndex
@@ -191,14 +183,25 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         guard isNavigatingViaSkip else { return }
         isNavigatingViaSkip = false
 
-        // Begin speaking the segment we navigated to, but only if the user
-        // was actively playing. If they skipped while paused, stay paused.
         if playbackState == .playing {
             speakSegment(at: currentSegmentIndex)
         }
     }
 
-    // MARK: - Private — speaking
+    // MARK: - Private -- audio session
+
+    private func configureAudioSession() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .spokenAudio)
+            try session.setActive(true)
+        } catch {
+            // Simulator may not support all configurations; playback
+            // still works through the default session.
+        }
+    }
+
+    // MARK: - Private -- speaking
 
     private func speakSegment(at index: Int) {
         guard let segment = segments[safe: index] else {
@@ -207,7 +210,6 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         }
 
         guard !segment.plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            // Skip empty segments and continue.
             let next = index + 1
             if next < segments.count {
                 currentSegmentIndex = next
@@ -222,11 +224,20 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         currentWordRange    = nil
         playbackStartDate   = Date()
 
-        let utterance       = SSMLBuilder.buildUtterance(for: segment)
-        utterance.voice     = voice(for: segment.speaker)
+        let utterance   = SSMLBuilder.buildUtterance(for: segment)
+        utterance.voice = voice(for: segment.speaker)
 
-        // Add a brief pause before all segments except the first so
-        // transitions between speakers feel natural.
+        // Speaker-specific pitch and rate so the two hosts sound distinct
+        // even when both voices are compact quality on Simulator.
+        switch segment.speaker {
+        case .hostA:
+            utterance.pitchMultiplier = 1.0
+            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.92
+        case .hostB:
+            utterance.pitchMultiplier = 1.15
+            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.87
+        }
+
         if index > 0 {
             utterance.preUtteranceDelay = 0.4
         }
@@ -235,7 +246,7 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     private func navigateTo(index: Int) {
-        let wasPlaying    = playbackState == .playing
+        let wasPlaying      = playbackState == .playing
         isNavigatingViaSkip = true
         accumulateElapsed()
 
@@ -244,13 +255,10 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
 
         synthesizer.stopSpeaking(at: .immediate)
 
-        // If the user was paused, stay paused at the new position.
-        // didCancel will fire and check playbackState there.
         if !wasPlaying {
             playbackState = .paused
             isNavigatingViaSkip = false
         }
-        // If wasPlaying, didCancel fires and calls speakSegment(at:).
     }
 
     private func stopSpeakingAndReset() {
@@ -261,39 +269,102 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         currentWordRange   = nil
     }
 
-    // MARK: - Private — voice selection
+    // MARK: - Private -- voice selection
 
+    /// Picks two audibly distinct voices for the podcast hosts.
+    ///
+    /// Tier 1: Two premium/enhanced en-US voices (real device with downloads).
+    /// Tier 2: One premium en-US + one premium en-GB/en-AU.
+    /// Tier 3: Samantha (en-US) + Karen (en-AU) at compact quality (Simulator).
+    /// Tier 4: Any two distinct English voices.
     private static func selectVoices() -> (hostA: AVSpeechSynthesisVoice?, hostB: AVSpeechSynthesisVoice?) {
         let all = AVSpeechSynthesisVoice.speechVoices()
-        let enUS = all.filter { $0.language.hasPrefix("en-US") }
 
-        // Prefer premium/enhanced; fall back to compact.
-        let preferred = enUS.filter {
-            $0.quality == .premium || $0.quality == .enhanced
+        // Filter out novelty/joke voices (Bad News, Bubbles, Boing, etc.)
+        // that ship with macOS-heritage identifiers.
+        let realVoices = all.filter {
+            $0.identifier.hasPrefix("com.apple.voice")
+            || $0.identifier.hasPrefix("com.apple.eloquence")
         }
-        let pool = preferred.isEmpty ? enUS : preferred
 
-        guard !pool.isEmpty else {
-            // No en-US voice available at all — use system default for both.
+        let enUS    = realVoices.filter { $0.language.hasPrefix("en-US") }
+        let premium = enUS.filter { $0.quality == .premium || $0.quality == .enhanced }
+
+        // Tier 1: two distinct premium/enhanced en-US voices.
+        if premium.count >= 2 {
+            let sorted = premium.sorted { $0.identifier < $1.identifier }
+            let first = sorted[0]
+            let different = sorted.first {
+                !$0.identifier.hasPrefix(String(first.identifier.prefix(30)))
+            }
+            return (first, different ?? sorted[1])
+        }
+
+        // Tier 2: one premium en-US paired with a premium from another locale.
+        if let primaryPremium = premium.first {
+            let otherPremium = realVoices.filter {
+                ($0.language.hasPrefix("en-GB") || $0.language.hasPrefix("en-AU"))
+                && ($0.quality == .premium || $0.quality == .enhanced)
+            }
+            if let companion = otherPremium.first {
+                return (primaryPremium, companion)
+            }
+        }
+
+        // Tier 3: compact voices with locale diversity (Simulator path).
+        // Prefer Samantha and Karen -- they pair well with pitch/rate tuning
+        // and have the most natural compact renderings.
+        let enAU = realVoices.filter { $0.language.hasPrefix("en-AU") }
+        let enGB = realVoices.filter { $0.language.hasPrefix("en-GB") }
+
+        let samantha = enUS.first { $0.name == "Samantha" } ?? enUS.first
+        let karen    = enAU.first { $0.name == "Karen" }
+            ?? enAU.first
+            ?? enGB.first
+
+        if let a = samantha, let b = karen {
+            return (a, b)
+        }
+
+        // Tier 4: any two distinct English voices.
+        let anyEnglish = realVoices
+            .filter { $0.language.hasPrefix("en") }
+            .sorted { $0.identifier < $1.identifier }
+
+        guard let first = anyEnglish.first else {
             return (nil, nil)
         }
 
-        let sorted = pool.sorted { $0.identifier < $1.identifier }
-
-        if sorted.count == 1 {
-            return (sorted[0], sorted[0])
-        }
-
-        // Pick two voices with different identifier prefixes where possible,
-        // so they differ in more than just a version suffix.
-        let first = sorted[0]
-        let different = sorted.first {
-            !$0.identifier.hasPrefix(String(first.identifier.prefix(30)))
-        }
-        let second = different ?? sorted[1]
+        let second = anyEnglish.count >= 2
+            ? (anyEnglish.first { $0.language != first.language } ?? anyEnglish[1])
+            : first
 
         return (first, second)
     }
+
+    #if DEBUG
+    private static func logVoiceDiagnostics(
+        hostA: AVSpeechSynthesisVoice?,
+        hostB: AVSpeechSynthesisVoice?
+    ) {
+        let all     = AVSpeechSynthesisVoice.speechVoices()
+        let english = all.filter { $0.language.hasPrefix("en") }
+
+        print("[SpeechService] Available English voices: \(english.count)")
+        for v in english.sorted(by: { $0.language < $1.language }) {
+            let q: String
+            switch v.quality {
+            case .default:    q = "compact"
+            case .enhanced:   q = "enhanced"
+            case .premium:    q = "premium"
+            @unknown default: q = "unknown"
+            }
+            print("  \(v.language) | \(q) | \(v.name) | \(v.identifier)")
+        }
+        print("[SpeechService] Host A -> \(hostA?.name ?? "nil") (\(hostA?.language ?? "nil"))")
+        print("[SpeechService] Host B -> \(hostB?.name ?? "nil") (\(hostB?.language ?? "nil"))")
+    }
+    #endif
 
     private func voice(for speaker: Speaker) -> AVSpeechSynthesisVoice? {
         switch speaker {
@@ -302,7 +373,7 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    // MARK: - Private — elapsed time
+    // MARK: - Private -- elapsed time
 
     private func accumulateElapsed() {
         guard let start = playbackStartDate else { return }
@@ -326,7 +397,6 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
             self.playbackState = .paused
         }
 
-        // On foreground return, do not auto-resume
         becomeObserver = center.addObserver(
             forName: UIApplication.didBecomeActiveNotification,
             object:  nil,
