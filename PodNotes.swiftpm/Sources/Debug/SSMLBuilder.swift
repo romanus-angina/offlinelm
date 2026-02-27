@@ -12,9 +12,10 @@ enum SSMLBuilder {
         }
 
         let utterance = AVSpeechUtterance(string: segment.plainText)
-        utterance.rate             = AVSpeechUtteranceDefaultSpeechRate * 0.92
-        utterance.pitchMultiplier  = segment.speaker == .hostA ? 1.0 : 1.05
-        utterance.postUtteranceDelay = 0.3
+        utterance.rate               = AVSpeechUtteranceDefaultSpeechRate * 0.85
+        utterance.pitchMultiplier    = segment.speaker == .hostA ? 1.1 : 1.2
+        utterance.volume             = 1.0
+        utterance.postUtteranceDelay = 0.35
         return utterance
     }
 

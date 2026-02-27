@@ -7,7 +7,7 @@ struct ContentView: View {
     @State private var router = AppRouter()
 
     var body: some View {
-        PromptTestRunnerView()
+        SpeechDebugView()
     }
 
     private var detailPlaceholder: some View {
