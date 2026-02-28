@@ -6,15 +6,33 @@ struct ContentView: View {
 
     @State private var router = AppRouter()
 
+    #if DEBUG
+    @State private var isShowingTests = false
+    #endif
+
     var body: some View {
-        NavigationSplitView(columnVisibility: Bindable(router).columnVisibility) {
-            DashboardView()
-                .environment(router)
-        } detail: {
-            detailView
-                .environment(router)
+        ZStack(alignment: .bottomLeading) {
+            NavigationSplitView(columnVisibility: Bindable(router).columnVisibility) {
+                DashboardView()
+                    .environment(router)
+            } detail: {
+                detailView
+                    .environment(router)
+            }
+
+            #if DEBUG
+            debugButton
+            #endif
         }
+        #if DEBUG
+        .sheet(isPresented: $isShowingTests) {
+            PromptTestRunnerView()
+                .preferredColorScheme(.dark)
+        }
+        #endif
     }
+
+    // MARK: - Detail routing
 
     @ViewBuilder
     private var detailView: some View {
@@ -45,4 +63,25 @@ struct ContentView: View {
             }
         }
     }
+
+    // MARK: - Debug
+
+    #if DEBUG
+    private var debugButton: some View {
+        Button {
+            isShowingTests = true
+        } label: {
+            Text("Tests")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(AppTheme.Colors.backgroundPrimary)
+                .padding(.horizontal, AppTheme.Spacing.sm)
+                .padding(.vertical, AppTheme.Spacing.xs)
+                .background(AppTheme.Colors.ana4)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, AppTheme.Spacing.md)
+        .padding(.bottom, AppTheme.Spacing.md)
+    }
+    #endif
 }
