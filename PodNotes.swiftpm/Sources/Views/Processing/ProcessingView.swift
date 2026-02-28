@@ -1,14 +1,20 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 @available(iOS 26, *)
 struct ProcessingView: View {
 
     let module: StudyModule
 
-    @Environment(AppRouter.self)    private var router
-    @Environment(\.modelContext)    private var context
-    @State private var vm = ProcessingViewModel()
+    @Environment(AppRouter.self)  private var router
+    @Environment(\.modelContext)  private var context
+    @State private var vm          = ProcessingViewModel()
+    @State private var glowPulsing = false
+
+    // Prepared once when the pipeline starts so the Taptic Engine
+    // is warmed up well before the completion moment.
+    private let haptic = UIImpactFeedbackGenerator(style: .heavy)
 
     var body: some View {
         ZStack {
@@ -18,7 +24,7 @@ struct ProcessingView: View {
                 header
                     .padding(.bottom, AppTheme.Spacing.lg)
 
-                terminalSection
+                terminalWithGlow
                     .padding(.bottom, AppTheme.Spacing.md)
 
                 progressSection
@@ -32,7 +38,17 @@ struct ProcessingView: View {
         }
         .navigationBarHidden(true)
         .task {
+            haptic.prepare()
             await vm.simulatePipeline(module: module, context: context)
+        }
+        .onChange(of: vm.isComplete) { _, complete in
+            guard complete else { return }
+            stopGlow()
+            haptic.impactOccurred(intensity: 1.0)
+        }
+        .onChange(of: vm.errorMessage) { _, message in
+            guard message != nil else { return }
+            stopGlow()
         }
     }
 
@@ -49,8 +65,7 @@ struct ProcessingView: View {
             Text(statusSubtitle)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(AppTheme.Colors.textSecondary)
-                .animation(AppTheme.Motion.standard, value: vm.isComplete)
-                .animation(AppTheme.Motion.standard, value: vm.errorMessage != nil)
+                .animation(AppTheme.Motion.standard, value: statusSubtitle)
         }
     }
 
@@ -60,13 +75,33 @@ struct ProcessingView: View {
         return "Processing your document..."
     }
 
-    // MARK: - Terminal
+    // MARK: - Terminal + glow
 
-    private var terminalSection: some View {
-        TerminalLogView(logs: vm.logs)
-            .frame(maxHeight: 340)
-            .scaleEffect(vm.isComplete ? 0.97 : 1.0, anchor: .top)
-            .animation(AppTheme.Motion.standard, value: vm.isComplete)
+    // The glow and the terminal scale together as one unit so the
+    // shrink-on-complete feels physically cohesive.
+    private var terminalWithGlow: some View {
+        ZStack {
+            glowLayer
+            TerminalLogView(logs: vm.logs)
+                .frame(maxHeight: 340)
+        }
+        .scaleEffect(vm.isComplete ? 0.97 : 1.0, anchor: .top)
+        .animation(.spring(response: 0.50, dampingFraction: 0.72), value: vm.isComplete)
+    }
+
+    // A heavily blurred shape behind the terminal that pulses while
+    // the pipeline is running, giving the impression of emitted energy.
+    private var glowLayer: some View {
+        RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
+            .fill(AppTheme.Colors.ana1.opacity(0.45))
+            .blur(radius: 36)
+            .scaleEffect(glowPulsing ? 1.08 : 0.92)
+            .opacity(glowPulsing ? 0.55 : 0.25)
+            .padding(.horizontal, -AppTheme.Spacing.lg)
+            // Glow fades away once the pipeline is no longer running.
+            .opacity(vm.isRunning ? 1 : 0)
+            .animation(AppTheme.Motion.gentle, value: vm.isRunning)
+            .onAppear { startGlow() }
     }
 
     // MARK: - Progress
@@ -99,9 +134,7 @@ struct ProcessingView: View {
     }
 
     private var stepLabel: String {
-        if vm.isComplete {
-            return "Complete"
-        }
+        if vm.isComplete { return "Complete" }
         let current = min(vm.currentStage.stepNumber, ProcessingStage.workingStages.count)
         let total   = ProcessingStage.workingStages.count
         return "Step \(current) of \(total)"
@@ -132,12 +165,22 @@ struct ProcessingView: View {
             .padding(.horizontal, AppTheme.Spacing.xl)
             .background(AppTheme.Gradients.primary)
             .clipShape(Capsule())
-            .shadow(color: AppTheme.Colors.glowAna1, radius: vm.isComplete ? 14 : 0, x: 0, y: 6)
+            .shadow(
+                color: AppTheme.Colors.glowAna1,
+                radius: vm.isComplete ? 18 : 0,
+                x: 0, y: 6
+            )
         }
         .buttonStyle(.plain)
-        .opacity(vm.isComplete ? 1 : 0)
-        .offset(y: vm.isComplete ? 0 : 16)
-        .animation(AppTheme.Motion.standard.delay(0.15), value: vm.isComplete)
+        // Scale up from slightly small when it appears, giving a
+        // counterweight feel against the terminal scaling down.
+        .scaleEffect(vm.isComplete ? 1.0 : 0.88)
+        .opacity(vm.isComplete ? 1.0 : 0.0)
+        .offset(y: vm.isComplete ? 0 : 14)
+        .animation(
+            .spring(response: 0.48, dampingFraction: 0.68).delay(0.12),
+            value: vm.isComplete
+        )
         .disabled(!vm.isComplete)
     }
 
@@ -172,5 +215,24 @@ struct ProcessingView: View {
         .offset(y: hasFailed ? 0 : 10)
         .animation(AppTheme.Motion.standard, value: hasFailed)
         .disabled(!hasFailed)
+    }
+
+    // MARK: - Glow animation
+
+    private func startGlow() {
+        withAnimation(
+            .easeInOut(duration: 1.4).repeatForever(autoreverses: true)
+        ) {
+            glowPulsing = true
+        }
+    }
+
+    // Stopping a repeatForever animation requires switching to a
+    // non-repeating animation targeting the resting state, otherwise
+    // the view snaps rather than settling.
+    private func stopGlow() {
+        withAnimation(.easeOut(duration: 0.6)) {
+            glowPulsing = false
+        }
     }
 }
