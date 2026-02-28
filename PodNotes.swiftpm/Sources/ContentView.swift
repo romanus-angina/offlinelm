@@ -5,6 +5,7 @@ import SwiftData
 struct ContentView: View {
 
     @State private var router = AppRouter()
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     #if DEBUG
     @State private var isShowingDebug = false
@@ -13,30 +14,34 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            NavigationStack {
-                DashboardView()
+            if hasCompletedOnboarding {
+                MainTabView()
                     .environment(router)
-                    .navigationDestination(item: Bindable(router).destination) { destination in
-                        destinationView(for: destination)
-                            .environment(router)
+            } else {
+                OnboardingView(onComplete: {
+                    withAnimation(AppTheme.Motion.standard) {
+                        hasCompletedOnboarding = true
                     }
+                })
             }
 
             #if DEBUG
-            Button {
-                isShowingDebug = true
-            } label: {
-                Text("Tests")
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(AppTheme.Colors.backgroundPrimary)
-                    .padding(.horizontal, AppTheme.Spacing.sm)
-                    .padding(.vertical, AppTheme.Spacing.xs)
-                    .background(AppTheme.Colors.ana4)
-                    .clipShape(Capsule())
+            if hasCompletedOnboarding {
+                Button {
+                    isShowingDebug = true
+                } label: {
+                    Text("Tests")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(AppTheme.Colors.backgroundPrimary)
+                        .padding(.horizontal, AppTheme.Spacing.sm)
+                        .padding(.vertical, AppTheme.Spacing.xs)
+                        .background(AppTheme.Colors.ana4)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, AppTheme.Spacing.md)
+                .padding(.bottom, 72)
             }
-            .buttonStyle(.plain)
-            .padding(.leading, AppTheme.Spacing.md)
-            .padding(.bottom, AppTheme.Spacing.md)
             #endif
         }
         #if DEBUG
@@ -56,19 +61,5 @@ struct ContentView: View {
             .preferredColorScheme(.dark)
         }
         #endif
-    }
-
-    // MARK: - Destination routing
-
-    @ViewBuilder
-    private func destinationView(for destination: AppDestination) -> some View {
-        switch destination {
-        case .processing(let module):
-            ProcessingView(module: module)
-        case .podcast(let module):
-            PodcastPlayerView(module: module)
-        case .slides(let module):
-            SlidesView(module: module)
-        }
     }
 }

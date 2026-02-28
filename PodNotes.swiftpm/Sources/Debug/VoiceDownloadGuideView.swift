@@ -4,19 +4,15 @@ import SwiftUI
 struct VoiceDownloadGuideView: View {
     @Environment(\.dismiss) private var dismiss
     let onOpenSettings: () -> Void
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                     headerSection
-                    
                     benefitsSection
-                    
                     instructionsSection
-                    
                     tipsSection
-                    
                     actionButton
                 }
                 .padding(AppTheme.Spacing.md)
@@ -37,207 +33,234 @@ struct VoiceDownloadGuideView: View {
             }
         }
     }
-    
+
+    // MARK: - Header
+
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
             HStack {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 40))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                ZStack {
+                    Circle()
+                        .fill(AppTheme.Colors.ana1.opacity(0.15))
+                        .frame(width: 64, height: 64)
+                    Circle()
+                        .strokeBorder(AppTheme.Colors.ana5.opacity(0.3), lineWidth: 1)
+                        .frame(width: 64, height: 64)
+                    Image(systemName: "waveform.badge.plus")
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [AppTheme.Colors.ana1, AppTheme.Colors.ana5],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                
+                }
                 Spacer()
             }
-            
-            Text("Enhance Your Listening Experience")
+
+            Text("Better Voices, Better Learning")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
-            
-            Text("Download premium voices for natural-sounding speech that makes learning more enjoyable.")
+
+            Text("Downloading premium voices makes Alex and Sam sound significantly more natural, which helps you stay focused for longer.")
                 .font(.system(size: 15))
                 .foregroundStyle(AppTheme.Colors.textSecondary)
+                .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
-    
+
+    // MARK: - Benefits
+
     private var benefitsSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            sectionTitle("Why Premium Voices?")
-            
+            sectionTitle("What changes")
+
             benefitRow(
                 icon: "waveform",
-                title: "Natural Sound",
-                description: "Premium voices sound more human-like with better prosody and intonation."
+                title: "Natural Intonation",
+                description: "Premium voices handle pauses, emphasis, and sentence flow the way a real person would.",
+                color: AppTheme.Colors.ana1
             )
-            
+
             benefitRow(
                 icon: "brain.head.profile",
-                title: "Better Comprehension",
-                description: "Natural speech patterns help your brain process information more effectively."
+                title: "Easier to Follow",
+                description: "Your brain spends less effort parsing robotic speech and more effort absorbing the content.",
+                color: AppTheme.Colors.ana5
             )
-            
+
             benefitRow(
                 icon: "ear",
-                title: "Less Fatigue",
-                description: "High-quality voices are easier to listen to for extended periods."
+                title: "Comfortable for Long Sessions",
+                description: "Smoother audio means you can listen through a full study session without fatigue.",
+                color: AppTheme.Colors.ana4
             )
         }
         .padding(AppTheme.Spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
                 .fill(AppTheme.Colors.backgroundSecondary)
-        )
-    }
-    
-    private var instructionsSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            sectionTitle("How to Download Premium Voices")
-            
-            instructionStep(
-                number: 1,
-                text: "Tap the button below to open Settings"
-            )
-            
-            instructionStep(
-                number: 2,
-                text: "Navigate to Accessibility → Spoken Content → Voices"
-            )
-            
-            instructionStep(
-                number: 3,
-                text: "Select English (or your preferred language)"
-            )
-            
-            instructionStep(
-                number: 4,
-                text: "Download voices marked as 'Enhanced' or 'Premium'"
-            )
-            
-            instructionStep(
-                number: 5,
-                text: "Return to the app — the new voices will be used automatically"
-            )
-        }
-        .padding(AppTheme.Spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(AppTheme.Colors.backgroundSecondary)
-        )
-    }
-    
-    private var tipsSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-            HStack(spacing: 8) {
-                Image(systemName: "lightbulb.fill")
-                    .foregroundStyle(.yellow)
-                Text("Pro Tips")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.Colors.textPrimary)
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                tipRow("Download on Wi-Fi — premium voices can be 200-500 MB each")
-                tipRow("Try multiple voices to find your favorites")
-                tipRow("Siri voices (if available) often provide the best quality")
-                tipRow("You can delete unused voices later to save storage")
-            }
-        }
-        .padding(AppTheme.Spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.yellow.opacity(0.1))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(Color.yellow.opacity(0.3), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                        .strokeBorder(AppTheme.Colors.borderSubtle, lineWidth: 1)
                 )
         )
     }
-    
+
+    // MARK: - Instructions
+
+    private var instructionsSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+            sectionTitle("How to get them")
+
+            instructionStep(
+                number: 1,
+                text: "Tap the button at the bottom of this page"
+            )
+
+            instructionStep(
+                number: 2,
+                text: "Head to Accessibility > Spoken Content > Voices"
+            )
+
+            instructionStep(
+                number: 3,
+                text: "Pick English and download any voice labelled Enhanced or Premium"
+            )
+
+            instructionStep(
+                number: 4,
+                text: "Return to the app"
+            )
+        }
+        .padding(AppTheme.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                .fill(AppTheme.Colors.backgroundSecondary)
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                        .strokeBorder(AppTheme.Colors.borderSubtle, lineWidth: 1)
+                )
+        )
+    }
+
+    // MARK: - Tips
+
+    private var tipsSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                Image(systemName: "lightbulb.fill")
+                    .foregroundStyle(AppTheme.Colors.ana4)
+                Text("Good to know")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+            }
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                tipRow("Each voice is around 200-500 MB, so Wi-Fi is your friend here.")
+                tipRow("Try a couple and see which one you prefer for long study sessions.")
+                tipRow("You can always remove voices you don't use to free up storage.")
+            }
+        }
+        .padding(AppTheme.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                .fill(AppTheme.Colors.ana4.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                        .strokeBorder(AppTheme.Colors.ana4.opacity(0.20), lineWidth: 1)
+                )
+        )
+    }
+
+    // MARK: - Action
+
     private var actionButton: some View {
         Button {
             onOpenSettings()
             dismiss()
         } label: {
-            HStack {
+            HStack(spacing: AppTheme.Spacing.sm) {
                 Image(systemName: "gear")
+                    .font(.system(size: 15, weight: .semibold))
                 Text("Open Settings")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-            )
+            .frame(height: 52)
+            .background(AppTheme.Gradients.primary)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+            .shadow(color: AppTheme.Colors.glowAna1, radius: 14, x: 0, y: 6)
         }
         .buttonStyle(.plain)
     }
-    
-    // MARK: - Helper Views
-    
+
+    // MARK: - Reusable pieces
+
     private func sectionTitle(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 17, weight: .semibold, design: .rounded))
-            .foregroundStyle(AppTheme.Colors.textPrimary)
+        Text(text.uppercased())
+            .font(.system(size: 12, weight: .bold, design: .monospaced))
+            .foregroundStyle(AppTheme.Colors.textTertiary)
+            .tracking(1.0)
     }
-    
-    private func benefitRow(icon: String, title: String, description: String) -> some View {
+
+    private func benefitRow(icon: String, title: String, description: String, color: Color) -> some View {
         HStack(alignment: .top, spacing: AppTheme.Spacing.sm) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundStyle(AppTheme.Colors.ana1)
-                .frame(width: 32)
-            
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.15))
+                    .frame(width: 32, height: 32)
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(color)
+            }
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
-                
+
                 Text(description)
                     .font(.system(size: 13))
                     .foregroundStyle(AppTheme.Colors.textSecondary)
+                    .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
-    
+
     private func instructionStep(number: Int, text: String) -> some View {
         HStack(alignment: .top, spacing: AppTheme.Spacing.sm) {
             Text("\(number)")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                .foregroundStyle(AppTheme.Colors.backgroundPrimary)
                 .frame(width: 24, height: 24)
                 .background(
                     Circle()
                         .fill(AppTheme.Colors.ana1)
                 )
-            
+
             Text(text)
                 .font(.system(size: 14))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
-    
+
     private func tipRow(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("•")
-                .foregroundStyle(AppTheme.Colors.textSecondary)
+        HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.sm) {
+            Circle()
+                .fill(AppTheme.Colors.ana4.opacity(0.5))
+                .frame(width: 5, height: 5)
+                .offset(y: 4)
             Text(text)
                 .font(.system(size: 13))
                 .foregroundStyle(AppTheme.Colors.textSecondary)
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -247,4 +270,5 @@ struct VoiceDownloadGuideView: View {
     VoiceDownloadGuideView {
         print("Opening settings")
     }
+    .preferredColorScheme(.dark)
 }

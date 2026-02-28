@@ -12,8 +12,6 @@ struct ProcessingView: View {
     @State private var vm          = ProcessingViewModel()
     @State private var glowPulsing = false
 
-    // Prepared once when the pipeline starts so the Taptic Engine
-    // is warmed up well before the completion moment.
     private let haptic = UIImpactFeedbackGenerator(style: .heavy)
 
     var body: some View {
@@ -71,14 +69,12 @@ struct ProcessingView: View {
 
     private var statusSubtitle: String {
         if vm.errorMessage != nil { return "Something went wrong." }
-        if vm.isComplete          { return "Ready to listen." }
+        if vm.isComplete          { return "Ready to listen and study." }
         return "Processing your document..."
     }
 
     // MARK: - Terminal + glow
 
-    // The glow and the terminal scale together as one unit so the
-    // shrink-on-complete feels physically cohesive.
     private var terminalWithGlow: some View {
         ZStack {
             glowLayer
@@ -89,8 +85,6 @@ struct ProcessingView: View {
         .animation(.spring(response: 0.50, dampingFraction: 0.72), value: vm.isComplete)
     }
 
-    // A heavily blurred shape behind the terminal that pulses while
-    // the pipeline is running, giving the impression of emitted energy.
     private var glowLayer: some View {
         RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
             .fill(AppTheme.Colors.ana1.opacity(0.45))
@@ -98,7 +92,6 @@ struct ProcessingView: View {
             .scaleEffect(glowPulsing ? 1.08 : 0.92)
             .opacity(glowPulsing ? 0.55 : 0.25)
             .padding(.horizontal, -AppTheme.Spacing.lg)
-            // Glow fades away once the pipeline is no longer running.
             .opacity(vm.isRunning ? 1 : 0)
             .animation(AppTheme.Motion.gentle, value: vm.isRunning)
             .onAppear { startGlow() }
@@ -140,40 +133,77 @@ struct ProcessingView: View {
         return "Step \(current) of \(total)"
     }
 
-    // MARK: - Action section
+    // MARK: - Action section (dual CTA)
 
     private var actionSection: some View {
         ZStack {
-            listenButton
+            completionActions
             retrySection
         }
-        .frame(height: 52)
     }
 
-    private var listenButton: some View {
-        Button {
-            router.showPodcast(for: module)
-        } label: {
-            HStack(spacing: AppTheme.Spacing.sm) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 15, weight: .bold))
-                Text("Listen Now")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+    // Two side-by-side CTAs: Listen Now (primary) and Study Slides (secondary)
+    private var completionActions: some View {
+        VStack(spacing: AppTheme.Spacing.md) {
+            HStack(spacing: AppTheme.Spacing.md) {
+                // Primary: Listen Now
+                Button {
+                    router.showPodcast(for: module)
+                } label: {
+                    HStack(spacing: AppTheme.Spacing.sm) {
+                        Image(systemName: "headphones")
+                            .font(.system(size: 15, weight: .bold))
+                        Text("Listen Now")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(AppTheme.Gradients.primary)
+                    .clipShape(Capsule())
+                    .shadow(
+                        color: AppTheme.Colors.glowAna1,
+                        radius: vm.isComplete ? 14 : 0,
+                        x: 0, y: 5
+                    )
+                }
+                .buttonStyle(.plain)
+
+                // Secondary: Study Slides
+                Button {
+                    router.showSlides(for: module)
+                } label: {
+                    HStack(spacing: AppTheme.Spacing.sm) {
+                        Image(systemName: "rectangle.on.rectangle")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Study")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(AppTheme.Colors.ana5)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(
+                        Capsule()
+                            .fill(AppTheme.Colors.ana5.opacity(0.10))
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(AppTheme.Colors.ana5.opacity(0.35), lineWidth: 1.5)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
             }
-            .foregroundStyle(Color.white)
-            .frame(height: 52)
-            .padding(.horizontal, AppTheme.Spacing.xl)
-            .background(AppTheme.Gradients.primary)
-            .clipShape(Capsule())
-            .shadow(
-                color: AppTheme.Colors.glowAna1,
-                radius: vm.isComplete ? 18 : 0,
-                x: 0, y: 6
-            )
+
+            // Back to library link
+            Button {
+                router.goToDashboard()
+            } label: {
+                Text("Back to Library")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.Colors.textTertiary)
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
-        // Scale up from slightly small when it appears, giving a
-        // counterweight feel against the terminal scaling down.
         .scaleEffect(vm.isComplete ? 1.0 : 0.88)
         .opacity(vm.isComplete ? 1.0 : 0.0)
         .offset(y: vm.isComplete ? 0 : 14)
@@ -196,20 +226,31 @@ struct ProcessingView: View {
                     .lineLimit(2)
             }
 
-            Button {
-                Task { await vm.retry(module: module, context: context) }
-            } label: {
-                Text("Retry")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.Colors.statusFailed)
-                    .frame(height: 44)
-                    .padding(.horizontal, AppTheme.Spacing.lg)
-                    .background(
-                        Capsule()
-                            .strokeBorder(AppTheme.Colors.statusFailed.opacity(0.4), lineWidth: 1)
-                    )
+            HStack(spacing: AppTheme.Spacing.md) {
+                Button {
+                    Task { await vm.retry(module: module, context: context) }
+                } label: {
+                    Text("Retry")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.Colors.statusFailed)
+                        .frame(height: 44)
+                        .padding(.horizontal, AppTheme.Spacing.lg)
+                        .background(
+                            Capsule()
+                                .strokeBorder(AppTheme.Colors.statusFailed.opacity(0.4), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    router.goToDashboard()
+                } label: {
+                    Text("Back to Library")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.Colors.textTertiary)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .opacity(hasFailed ? 1 : 0)
         .offset(y: hasFailed ? 0 : 10)
@@ -227,9 +268,6 @@ struct ProcessingView: View {
         }
     }
 
-    // Stopping a repeatForever animation requires switching to a
-    // non-repeating animation targeting the resting state, otherwise
-    // the view snaps rather than settling.
     private func stopGlow() {
         withAnimation(.easeOut(duration: 0.6)) {
             glowPulsing = false
