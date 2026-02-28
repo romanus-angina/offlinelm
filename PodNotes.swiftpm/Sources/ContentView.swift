@@ -5,66 +5,44 @@ import SwiftData
 struct ContentView: View {
 
     @State private var router = AppRouter()
-    @State private var vm     = ProcessingViewModel()
-    @State private var started = false
 
     var body: some View {
-        ZStack {
-            AppTheme.Colors.backgroundPrimary.ignoresSafeArea()
-
-            VStack(spacing: AppTheme.Spacing.lg) {
-                // Status readout
-                VStack(alignment: .leading, spacing: 4) {
-                    statusLine("isComplete",        vm.isComplete ? "true" : "false")
-                    statusLine("isRunning",         vm.isRunning ? "true" : "false")
-                    statusLine("progressFraction",  String(format: "%.2f", vm.progressFraction))
-                    statusLine("completedSteps",    "\(vm.completedStepCount)")
-                    statusLine("error",             vm.errorMessage ?? "none")
-                }
-                .padding(AppTheme.Spacing.md)
-                .background(AppTheme.Colors.backgroundSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
-
-                // Terminal
-                TerminalLogView(logs: vm.logs)
-                    .frame(maxHeight: 420)
-
-                // Controls
-                if !started {
-                    Button("Run pipeline") {
-                        started = true
-                        Task { await vm.simulatePipeline() }
-                    }
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.white)
-                    .frame(height: 48)
-                    .padding(.horizontal, AppTheme.Spacing.xl)
-                    .background(AppTheme.Gradients.primary)
-                    .clipShape(Capsule())
-                } else if vm.isComplete {
-                    Button("Run again") {
-                        started = false
-                        Task {
-                            try? await Task.sleep(nanoseconds: 100_000_000)
-                            started = true
-                            await vm.retry()
-                        }
-                    }
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.Colors.ana5)
-                }
-            }
-            .padding(AppTheme.Spacing.md)
+        NavigationSplitView(columnVisibility: Bindable(router).columnVisibility) {
+            DashboardView()
+                .environment(router)
+        } detail: {
+            detailView
+                .environment(router)
         }
     }
 
-    private func statusLine(_ key: String, _ value: String) -> some View {
-        HStack(spacing: 0) {
-            Text(key + ": ")
-                .foregroundStyle(AppTheme.Colors.textTertiary)
-            Text(value)
-                .foregroundStyle(AppTheme.Colors.textPrimary)
+    @ViewBuilder
+    private var detailView: some View {
+        switch router.destination {
+        case .processing(let module):
+            ProcessingView(module: module)
+        case .podcast(let module):
+            PodcastPlayerView(module: module)
+        case .slides(let module):
+            NavigationStack {
+                SlidesView(module: module)
+            }
+        case nil:
+            detailPlaceholder
         }
-        .font(.system(.caption, design: .monospaced))
+    }
+
+    private var detailPlaceholder: some View {
+        ZStack {
+            AppTheme.Colors.backgroundPrimary.ignoresSafeArea()
+            VStack(spacing: AppTheme.Spacing.lg) {
+                Image(systemName: "waveform.and.mic")
+                    .font(.system(size: 48, weight: .thin))
+                    .foregroundStyle(AppTheme.Gradients.spectrum)
+                Text("Select or import a module to begin.")
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.Colors.textTertiary)
+            }
+        }
     }
 }

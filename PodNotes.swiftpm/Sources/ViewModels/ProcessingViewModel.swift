@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 
 // MARK: - ProcessingStage
 
@@ -115,7 +116,7 @@ final class ProcessingViewModel {
         !isComplete && errorMessage == nil && !logs.isEmpty
     }
 
-    // MARK: - Simulated delays per stage (seconds)
+    // MARK: - Private
 
     private let simulatedDelays: [ProcessingStage: ClosedRange<Double>] = [
         .extractingText:     0.8...1.4,
@@ -129,10 +130,16 @@ final class ProcessingViewModel {
 
     // MARK: - Pipeline
 
-    func simulatePipeline() async {
+    // module and context are optional so the VM can still be used
+    // standalone (debug views, tests) without a SwiftData stack.
+    func simulatePipeline(module: StudyModule? = nil, context: ModelContext? = nil) async {
         logs         = []
         isComplete   = false
         errorMessage = nil
+
+        // Mark the module as actively processing so the dashboard card
+        // updates immediately rather than staying stuck on .importing.
+        updateModuleStatus(.processing, module: module, context: context)
 
         for stage in ProcessingStage.workingStages {
             guard errorMessage == nil else { break }
@@ -149,6 +156,8 @@ final class ProcessingViewModel {
                 startedAt: startDate
             ))
 
+            print("[ProcessingViewModel] stage started: \(stage.label)")
+
             let range = simulatedDelays[stage] ?? (1.0...1.5)
             let delay = Double.random(in: range)
 
@@ -156,6 +165,7 @@ final class ProcessingViewModel {
                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             } catch {
                 markFailed(id: entryID, startDate: startDate, error: error)
+                updateModuleStatus(.failed, module: module, context: context)
                 return
             }
 
@@ -163,27 +173,43 @@ final class ProcessingViewModel {
                 logs[index].status         = .completed
                 logs[index].elapsedSeconds = Date().timeIntervalSince(startDate)
             }
+
+            print("[ProcessingViewModel] stage done: \(stage.label) in \(String(format: "%.1f", delay))s")
         }
 
         guard errorMessage == nil else { return }
 
         currentStage = .complete
         logs.append(LogEntry(
-            id:            UUID(),
-            stage:         .complete,
-            message:       ProcessingStage.complete.label,
-            status:        .completed,
-            startedAt:     .now,
+            id:             UUID(),
+            stage:          .complete,
+            message:        ProcessingStage.complete.label,
+            status:         .completed,
+            startedAt:      .now,
             elapsedSeconds: 0
         ))
         isComplete = true
+
+        // Mark the module ready so the dashboard card shows the play button.
+        updateModuleStatus(.ready, module: module, context: context)
+        print("[ProcessingViewModel] pipeline complete, module status -> .ready")
     }
 
-    func retry() async {
-        await simulatePipeline()
+    func retry(module: StudyModule? = nil, context: ModelContext? = nil) async {
+        await simulatePipeline(module: module, context: context)
     }
 
-    // MARK: - Private
+    // MARK: - Private helpers
+
+    private func updateModuleStatus(
+        _ status: ProcessingStatus,
+        module: StudyModule?,
+        context: ModelContext?
+    ) {
+        guard let module, let context else { return }
+        module.status = status
+        try? context.save()
+    }
 
     private func markFailed(id: UUID, startDate: Date, error: Error) {
         if let index = logs.firstIndex(where: { $0.id == id }) {
