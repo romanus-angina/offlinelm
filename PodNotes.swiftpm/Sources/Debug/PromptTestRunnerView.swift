@@ -49,27 +49,32 @@ struct PromptTestRunnerView: View {
     }
 
     private func runAllSuites() {
+        let slideDeckResults = SlideDeckViewModelTests.runAll().map { r in
+            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
+        }
+        let processingResults = ProcessingViewModelTests.runAll().map { r in
+            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
+        }
+        let speechResults = SpeechServiceTests.runAll().map { r in
+            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
+        }
+        let ssmlResults = SSMLBuilderTests.runAll().map { r in
+            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
+        }
         let promptResults = PromptTemplateTests.runAll().map { r in
             RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
         }
         let fallbackResults = FallbackGeneratorTests.runAll().map { r in
             RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
         }
-        let ssmlResults = SSMLBuilderTests.runAll().map { r in
-            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
-        }
-        let speechResults = SpeechServiceTests.runAll().map { r in
-            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
-        }
-        let processingResults = ProcessingViewModelTests.runAll().map { r in
-                RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
-            }
+
         results = [
-            (suite: "ProcessingViewModel", tests: processingResults),  // add this
+            (suite: "SlideDeckViewModel",  tests: slideDeckResults),
+            (suite: "ProcessingViewModel", tests: processingResults),
             (suite: "SpeechService",       tests: speechResults),
             (suite: "SSMLBuilder",         tests: ssmlResults),
             (suite: "PromptTemplates",     tests: promptResults),
-            (suite: "FallbackGenerator",   tests: fallbackResults)
+            (suite: "FallbackGenerator",   tests: fallbackResults),
         ]
         hasRun = true
     }
