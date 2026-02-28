@@ -1,93 +1,179 @@
 import SwiftUI
 
+// MARK: - PodcastPlayerView
+
 @available(iOS 26, *)
 struct PodcastPlayerView: View {
-    let module: StudyModule
+
+    @State private var viewModel: PodcastViewModel
+
     @Environment(AppRouter.self) private var router
+
+    init(module: StudyModule) {
+        _viewModel = State(initialValue: PodcastViewModel(module: module))
+    }
+
+    // Preview-only init — internal so ContentView can use .mock without a real module.
+    init(viewModel: PodcastViewModel) {
+        _viewModel = State(initialValue: viewModel)
+    }
 
     var body: some View {
         ZStack {
             AppTheme.Colors.backgroundPrimary.ignoresSafeArea()
-            VStack(spacing: AppTheme.Spacing.xl) {
-                Spacer()
-                albumArt
-                VStack(spacing: AppTheme.Spacing.sm) {
-                    Text(module.title)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.Colors.textPrimary)
-                        .multilineTextAlignment(.center)
-                    Text("Alex & Sam")
-                        .font(.system(size: 14, weight: .medium, design: .monospaced))
-                        .foregroundStyle(AppTheme.Colors.textTertiary)
-                }
-                transportBar
-                Spacer()
-                Button(action: { router.showSlides(for: module) }) {
-                    Label("View Slides", systemImage: "rectangle.on.rectangle")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.Colors.ana5)
-                }
-                .buttonStyle(.plain)
-                .padding(.bottom, AppTheme.Spacing.lg)
+
+            VStack(spacing: 0) {
+                header
+                waveformSection
+                transcript
+                controls
             }
-            .padding(AppTheme.Spacing.xl)
         }
-        .navigationTitle(module.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarHidden(true)
+        .sheet(isPresented: $viewModel.isShowingSlides) {
+            if let module = moduleForSlides {
+                NavigationStack {
+                    SlidesView(module: module)
+                }
+            }
+        }
     }
 
-    private var albumArt: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
-                .fill(AppTheme.Gradients.card)
-                .frame(width: 220, height: 220)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
-                        .strokeBorder(AppTheme.Colors.borderMedium, lineWidth: 1)
-                )
-            VStack(spacing: AppTheme.Spacing.sm) {
-                Image(systemName: "waveform.and.mic")
-                    .font(.system(size: 56, weight: .thin))
-                    .foregroundStyle(AppTheme.Gradients.spectrum)
-                Text("PodNotes")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(spacing: AppTheme.Spacing.md) {
+            Button {
+                viewModel.speech.pause()
+                router.goToDashboard()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(AppTheme.Colors.backgroundSecondary)
+                    )
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            VStack(spacing: 2) {
+                Text(viewModel.title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .lineLimit(1)
+
+                Text("Alex & Sam")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(AppTheme.Colors.textTertiary)
             }
-        }
-        .shadow(color: Color.black.opacity(0.4), radius: 24, x: 0, y: 12)
-    }
 
-    private var transportBar: some View {
-        HStack(spacing: AppTheme.Spacing.xl) {
-            transportButton(icon: "backward.fill")
-            playPauseButton
-            transportButton(icon: "forward.fill")
-        }
-    }
+            Spacer()
 
-    private func transportButton(icon: String) -> some View {
-        Button(action: {}) {
-            Image(systemName: icon)
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(AppTheme.Colors.textSecondary)
-                .frame(width: 48, height: 48)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var playPauseButton: some View {
-        Button(action: {}) {
-            ZStack {
-                Circle()
-                    .fill(AppTheme.Gradients.primary)
-                    .frame(width: 64, height: 64)
-                Image(systemName: "play.fill")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .offset(x: 2)
+            Button {
+                viewModel.isShowingSlides = true
+            } label: {
+                Image(systemName: "rectangle.on.rectangle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.ana5)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(AppTheme.Colors.backgroundSecondary)
+                    )
             }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
-        .shadow(color: AppTheme.Colors.glowAna1, radius: 14, x: 0, y: 6)
+        .padding(.horizontal, AppTheme.Spacing.md)
+        .padding(.vertical, AppTheme.Spacing.sm)
+        .background(AppTheme.Colors.backgroundPrimary)
     }
+
+    // MARK: - Waveform section
+
+    private var waveformSection: some View {
+        VStack(spacing: AppTheme.Spacing.sm) {
+            WaveformView(
+                isPlaying: viewModel.isPlaying,
+                speaker: viewModel.currentSpeaker
+            )
+            .frame(height: 64)
+            .padding(.horizontal, AppTheme.Spacing.lg)
+
+            speakerPill
+        }
+        .padding(.vertical, AppTheme.Spacing.md)
+        .background(AppTheme.Colors.backgroundPrimary)
+    }
+
+    private var speakerPill: some View {
+        let speaker = viewModel.currentSpeaker
+        let accent = PlayerPalette.accent(for: speaker)
+
+        return HStack(spacing: AppTheme.Spacing.xs) {
+            Circle()
+                .fill(accent)
+                .frame(width: 6, height: 6)
+
+            Text(speaker.displayName.uppercased())
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(accent)
+        }
+        .padding(.horizontal, AppTheme.Spacing.sm)
+        .padding(.vertical, AppTheme.Spacing.xs)
+        .background(
+            Capsule()
+                .fill(accent.opacity(0.10))
+                .overlay(
+                    Capsule()
+                        .strokeBorder(accent.opacity(0.25), lineWidth: 1)
+                )
+        )
+        .animation(AppTheme.Motion.standard, value: speaker)
+    }
+
+    // MARK: - Transcript
+
+    private var transcript: some View {
+        TranscriptView(
+            segments: viewModel.segments,
+            currentSegmentIndex: viewModel.speech.currentSegmentIndex,
+            currentWordRange: viewModel.speech.currentWordRange
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Controls
+
+    private var controls: some View {
+        PlaybackControlsView(
+            isPlaying: viewModel.isPlaying,
+            progressFraction: viewModel.progressFraction,
+            segmentPositionLabel: viewModel.segmentPositionLabel,
+            speaker: viewModel.currentSpeaker,
+            onPlayPause: { viewModel.togglePlayPause() },
+            onSkipBack: { viewModel.skipBackward() },
+            onSkipForward: { viewModel.skipForward() }
+        )
+    }
+
+    // MARK: - Slides sheet helper
+
+    // The sheet needs a StudyModule but PodcastViewModel.mock uses the
+    // preview init path (no module). Guard against that case gracefully.
+    private var moduleForSlides: StudyModule? { nil }
+}
+
+// MARK: - Preview
+
+@available(iOS 26, *)
+#Preview("Podcast Player — mock data") {
+    NavigationStack {
+        PodcastPlayerView(viewModel: .mock)
+            .environment(AppRouter())
+    }
+    .preferredColorScheme(.dark)
 }
