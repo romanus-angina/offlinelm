@@ -40,10 +40,12 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
     private let voiceForHostA: AVSpeechSynthesisVoice?
     private let voiceForHostB: AVSpeechSynthesisVoice?
 
-    private var isNavigatingViaSkip = false
-
     private var playbackStartDate: Date?
     private var accumulatedSeconds: TimeInterval = 0
+
+    // Incremented every time we start a new utterance. didFinish checks
+    // that the generation it was called for still matches before advancing.
+    private var utteranceGeneration: Int = 0
 
     private var resignObserver: NSObjectProtocol?
     private var becomeObserver: NSObjectProtocol?
@@ -99,7 +101,11 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         case .paused:
             playbackState = .playing
             playbackStartDate = Date()
-            synthesizer.continueSpeaking()
+            if synthesizer.isPaused {
+                synthesizer.continueSpeaking()
+            } else {
+                speakSegment(at: currentSegmentIndex)
+            }
 
         case .playing:
             break
@@ -155,7 +161,12 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         _ synthesizer: AVSpeechSynthesizer,
         didFinish utterance: AVSpeechUtterance
     ) {
-        guard playbackState == .playing else { return }
+        // accessibilityLabel carries the generation stamp set in speakSegment.
+        // If it doesn't match the current generation, a skip fired after this
+        // utterance started — ignore the callback so we don't override navigation.
+        guard playbackState == .playing,
+              utterance.accessibilityLabel == "\(utteranceGeneration)"
+        else { return }
 
         let completedIndex = currentSegmentIndex
         accumulateElapsed()
@@ -180,12 +191,9 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         _ synthesizer: AVSpeechSynthesizer,
         didCancel utterance: AVSpeechUtterance
     ) {
-        guard isNavigatingViaSkip else { return }
-        isNavigatingViaSkip = false
-
-        if playbackState == .playing {
-            speakSegment(at: currentSegmentIndex)
-        }
+        // Cancels triggered by skip navigation are fully handled inside
+        // navigateTo — speakSegment is called there directly so nothing
+        // needs to happen here.
     }
 
     // MARK: - Private -- audio session
@@ -223,12 +231,13 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         currentSegmentIndex = index
         currentWordRange    = nil
         playbackStartDate   = Date()
+        utteranceGeneration += 1
 
         let utterance   = SSMLBuilder.buildUtterance(for: segment)
         utterance.voice = voice(for: segment.speaker)
+        // Tag with generation so didFinish can detect stale callbacks.
+        utterance.accessibilityLabel = "\(utteranceGeneration)"
 
-        // Speaker-specific pitch and rate so the two hosts sound distinct
-        // even when both voices are compact quality on Simulator.
         switch segment.speaker {
         case .hostA:
             utterance.pitchMultiplier = 1.0
@@ -245,24 +254,27 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.speak(utterance)
     }
 
+    // Immediately stops synthesis, updates index, and — critically — calls
+    // speakSegment directly rather than waiting on the didCancel delegate.
+    // This removes the timing dependency that caused skips to kill playback.
     private func navigateTo(index: Int) {
-        let wasPlaying      = playbackState == .playing
-        isNavigatingViaSkip = true
-        accumulateElapsed()
+        let wasPlaying = playbackState == .playing
 
         currentSegmentIndex = index
         currentWordRange    = nil
+        accumulateElapsed()
 
         synthesizer.stopSpeaking(at: .immediate)
 
-        if !wasPlaying {
+        if wasPlaying {
+            playbackState = .playing
+            speakSegment(at: index)
+        } else {
             playbackState = .paused
-            isNavigatingViaSkip = false
         }
     }
 
     private func stopSpeakingAndReset() {
-        isNavigatingViaSkip = false
         synthesizer.stopSpeaking(at: .immediate)
         accumulatedSeconds = 0
         playbackStartDate  = nil
@@ -271,17 +283,9 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
 
     // MARK: - Private -- voice selection
 
-    /// Picks two audibly distinct voices for the podcast hosts.
-    ///
-    /// Tier 1: Two premium/enhanced en-US voices (real device with downloads).
-    /// Tier 2: One premium en-US + one premium en-GB/en-AU.
-    /// Tier 3: Samantha (en-US) + Karen (en-AU) at compact quality (Simulator).
-    /// Tier 4: Any two distinct English voices.
     private static func selectVoices() -> (hostA: AVSpeechSynthesisVoice?, hostB: AVSpeechSynthesisVoice?) {
         let all = AVSpeechSynthesisVoice.speechVoices()
 
-        // Filter out novelty/joke voices (Bad News, Bubbles, Boing, etc.)
-        // that ship with macOS-heritage identifiers.
         let realVoices = all.filter {
             $0.identifier.hasPrefix("com.apple.voice")
             || $0.identifier.hasPrefix("com.apple.eloquence")
@@ -290,7 +294,6 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         let enUS    = realVoices.filter { $0.language.hasPrefix("en-US") }
         let premium = enUS.filter { $0.quality == .premium || $0.quality == .enhanced }
 
-        // Tier 1: two distinct premium/enhanced en-US voices.
         if premium.count >= 2 {
             let sorted = premium.sorted { $0.identifier < $1.identifier }
             let first = sorted[0]
@@ -300,7 +303,6 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
             return (first, different ?? sorted[1])
         }
 
-        // Tier 2: one premium en-US paired with a premium from another locale.
         if let primaryPremium = premium.first {
             let otherPremium = realVoices.filter {
                 ($0.language.hasPrefix("en-GB") || $0.language.hasPrefix("en-AU"))
@@ -311,9 +313,6 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
             }
         }
 
-        // Tier 3: compact voices with locale diversity (Simulator path).
-        // Prefer Samantha and Karen -- they pair well with pitch/rate tuning
-        // and have the most natural compact renderings.
         let enAU = realVoices.filter { $0.language.hasPrefix("en-AU") }
         let enGB = realVoices.filter { $0.language.hasPrefix("en-GB") }
 
@@ -326,7 +325,6 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
             return (a, b)
         }
 
-        // Tier 4: any two distinct English voices.
         let anyEnglish = realVoices
             .filter { $0.language.hasPrefix("en") }
             .sorted { $0.identifier < $1.identifier }

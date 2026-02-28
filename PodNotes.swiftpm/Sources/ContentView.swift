@@ -7,8 +7,11 @@ struct ContentView: View {
     @State private var router = AppRouter()
 
     var body: some View {
-        SpeechDebugView()
-    }
+            // Swap in PodcastPlayerView(viewModel: .mock) to test the player,
+            // or restore NavigationSplitView + DashboardView for the full app flow.
+        PodcastPlayerView(viewModel: .mock)
+                .environment(router)
+        }
 
     private var detailPlaceholder: some View {
         ZStack {
