@@ -55,6 +55,16 @@ struct SpeechDebugView: View {
                 AppTheme.Colors.backgroundPrimary.ignoresSafeArea()
                 VStack(spacing: 0) {
                     statusBar
+                    
+                    // Voice quality banner
+                    VoiceQualityBannerView(
+                        voiceQuality: service.voiceQuality,
+                        onOpenSettings: {
+                            service.openVoiceSettings()
+                        }
+                    )
+                    .padding(.top, AppTheme.Spacing.xs)
+                    
                     transcriptScroll
                     Divider()
                         .background(AppTheme.Colors.borderMedium)

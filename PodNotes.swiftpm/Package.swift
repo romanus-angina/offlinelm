@@ -12,6 +12,28 @@ let package = Package(
     platforms: [
         .iOS("26.0")
     ],
+    products: [
+        .iOSApplication(
+            name: "PodNotes",
+            targets: ["PodNotes"],
+            bundleIdentifier: "com.romanus.PodNotes",
+            teamIdentifier: "YM7PP9LQJF",
+            displayVersion: "1.0",
+            bundleVersion: "1",
+            appIcon: .placeholder(icon: .note),
+            accentColor: .presetColor(.blue),
+            supportedDeviceFamilies: [
+                .pad,
+                .phone
+            ],
+            supportedInterfaceOrientations: [
+                .portrait,
+                .landscapeRight,
+                .landscapeLeft,
+                .portraitUpsideDown(.when(deviceFamilies: [.pad]))
+            ]
+        )
+    ],
     targets: [
         .executableTarget(
             name: "PodNotes",
@@ -19,4 +41,3 @@ let package = Package(
         )
     ]
 )
-

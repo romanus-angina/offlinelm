@@ -13,12 +13,13 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            NavigationSplitView(columnVisibility: Bindable(router).columnVisibility) {
+            NavigationStack {
                 DashboardView()
                     .environment(router)
-            } detail: {
-                destinationView
-                    .environment(router)
+                    .navigationDestination(item: Bindable(router).destination) { destination in
+                        destinationView(for: destination)
+                            .environment(router)
+                    }
             }
 
             #if DEBUG
@@ -60,33 +61,14 @@ struct ContentView: View {
     // MARK: - Destination routing
 
     @ViewBuilder
-    private var destinationView: some View {
-        switch router.destination {
+    private func destinationView(for destination: AppDestination) -> some View {
+        switch destination {
         case .processing(let module):
             ProcessingView(module: module)
         case .podcast(let module):
             PodcastPlayerView(module: module)
         case .slides(let module):
-            // No NavigationStack here. SlideDeckView owns its own
-            // header and back button; a wrapper would create a phantom
-            // nav bar at the top of the screen.
             SlidesView(module: module)
-        case nil:
-            emptyDetail
-        }
-    }
-
-    private var emptyDetail: some View {
-        ZStack {
-            AppTheme.Colors.backgroundPrimary.ignoresSafeArea()
-            VStack(spacing: AppTheme.Spacing.lg) {
-                Image(systemName: "waveform.and.mic")
-                    .font(.system(size: 48, weight: .thin))
-                    .foregroundStyle(AppTheme.Gradients.spectrum)
-                Text("Select or import a module to begin.")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppTheme.Colors.textTertiary)
-            }
         }
     }
 }

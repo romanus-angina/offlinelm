@@ -6,13 +6,13 @@ import SwiftUI
 struct SlideDeckView: View {
 
     @State private var vm: SlideDeckViewModel
-    @Environment(AppRouter.self) private var router
+    @Environment(\.dismiss) private var dismiss
 
     init(module: StudyModule) {
         _vm = State(initialValue: SlideDeckViewModel(slides: module.slides))
     }
 
-    // Preview / debug path — no StudyModule needed.
+    // Preview / debug path -- no StudyModule needed.
     init(viewModel: SlideDeckViewModel) {
         _vm = State(initialValue: viewModel)
     }
@@ -34,7 +34,7 @@ struct SlideDeckView: View {
     private var deckHeader: some View {
         HStack {
             Button {
-                router.goToDashboard() // defined in your existing AppRouter
+                dismiss()
             } label: {
                 HStack(spacing: AppTheme.Spacing.xs) {
                     Image(systemName: "chevron.left")
@@ -64,10 +64,6 @@ struct SlideDeckView: View {
     }
 
     // MARK: - Pager
-    // TabView with .page style gives us native swipe-to-navigate.
-    // indexDisplayMode: .never — we draw our own dots in the footer.
-    // Each SlideCardView is wrapped in a DeckPage struct to keep
-    // ScrollView out of a computed property (avoids iOS 26 ambiguous init).
 
     private var deckPager: some View {
         TabView(selection: $vm.currentIndex) {
@@ -165,8 +161,6 @@ struct SlideDeckView: View {
 }
 
 // MARK: - DeckPage
-// Isolated struct so ScrollView's init resolves unambiguously on iOS 26.
-// Centres the card horizontally on iPad using frame(maxWidth:).
 
 @available(iOS 26, *)
 private struct DeckPage: View {

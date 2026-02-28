@@ -28,6 +28,7 @@ enum PlayerPalette {
 // MARK: - PodcastViewModel
 
 @available(iOS 26, *)
+@MainActor
 @Observable
 final class PodcastViewModel {
 
@@ -76,7 +77,7 @@ final class PodcastViewModel {
     // MARK: - Inits
 
     // Production path: driven by a real StudyModule.
-    init(module: StudyModule, speech: SpeechService = SpeechService()) {
+    init(module: StudyModule, speech: SpeechService) {
         self.title    = module.title
         let sorted    = module.dialogueSegments.sorted()
         self.segments = sorted
@@ -85,11 +86,20 @@ final class PodcastViewModel {
     }
 
     // Preview / testing path: no SwiftData required.
-    init(title: String, segments: [DialogueSegment], speech: SpeechService = SpeechService()) {
+    init(title: String, segments: [DialogueSegment], speech: SpeechService) {
         self.title    = title
         self.segments = segments.sorted()
         self.speech   = speech
         speech.load(segments.sorted())
+    }
+    
+    // Convenience initializers with default SpeechService
+    convenience init(module: StudyModule) {
+        self.init(module: module, speech: SpeechService())
+    }
+    
+    convenience init(title: String, segments: [DialogueSegment]) {
+        self.init(title: title, segments: segments, speech: SpeechService())
     }
 
     // MARK: - Transport

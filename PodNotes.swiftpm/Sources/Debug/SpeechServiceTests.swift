@@ -9,8 +9,8 @@ enum SpeechServiceTests {
         let detail: String
     }
 
-    static func runAll() -> [TestResult] {
-        [
+    static func runAll() async -> [TestResult] {
+        await [
             testInitialStateIsIdle(),
             testLoadSetsIdleAndCorrectCount(),
             testLoadWhilePlayingResetsState(),
@@ -37,7 +37,8 @@ enum SpeechServiceTests {
 
     // MARK: - Initial state
 
-    private static func testInitialStateIsIdle() -> TestResult {
+    @MainActor
+    private static func testInitialStateIsIdle() async -> TestResult {
         let service = SpeechService()
         return TestResult(
             name: "Initial playbackState is .idle",
@@ -48,7 +49,8 @@ enum SpeechServiceTests {
 
     // MARK: - load()
 
-    private static func testLoadSetsIdleAndCorrectCount() -> TestResult {
+    @MainActor
+    private static func testLoadSetsIdleAndCorrectCount() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 4))
         let passed = service.playbackState == .idle
@@ -61,7 +63,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testLoadWhilePlayingResetsState() -> TestResult {
+    @MainActor
+    private static func testLoadWhilePlayingResetsState() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 3))
         service.play()
@@ -77,7 +80,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testLoadEmptySegmentsSetsFinished() -> TestResult {
+    @MainActor
+    private static func testLoadEmptySegmentsSetsFinished() async -> TestResult {
         let service = SpeechService()
         service.load([])
         return TestResult(
@@ -89,7 +93,8 @@ enum SpeechServiceTests {
 
     // MARK: - play()
 
-    private static func testPlayFromIdleSetsPlaying() -> TestResult {
+    @MainActor
+    private static func testPlayFromIdleSetsPlaying() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 2))
         service.play()
@@ -100,7 +105,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testPlayFromFinishedRestarts() -> TestResult {
+    @MainActor
+    private static func testPlayFromFinishedRestarts() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 1))
         service.play()
@@ -117,7 +123,8 @@ enum SpeechServiceTests {
 
     // MARK: - pause()
 
-    private static func testPauseWhilePlayingSetsStatePaused() -> TestResult {
+    @MainActor
+    private static func testPauseWhilePlayingSetsStatePaused() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 3))
         service.play()
@@ -129,7 +136,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testPauseWhileIdleIsNoOp() -> TestResult {
+    @MainActor
+    private static func testPauseWhileIdleIsNoOp() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 2))
         service.pause()  // called before play() — must not crash
@@ -142,7 +150,8 @@ enum SpeechServiceTests {
 
     // MARK: - resume()
 
-    private static func testResumeFromPausedSetsPlaying() -> TestResult {
+    @MainActor
+    private static func testResumeFromPausedSetsPlaying() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 3))
         service.play()
@@ -155,7 +164,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testResumeFromIdleIsNoOp() -> TestResult {
+    @MainActor
+    private static func testResumeFromIdleIsNoOp() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 2))
         service.resume()  // called before play() — must not crash
@@ -168,7 +178,8 @@ enum SpeechServiceTests {
 
     // MARK: - skipForward()
 
-    private static func testSkipForwardAdvancesIndex() -> TestResult {
+    @MainActor
+    private static func testSkipForwardAdvancesIndex() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 4))
         service.play()
@@ -180,7 +191,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testSkipForwardAtLastSegmentDoesNotCrash() -> TestResult {
+    @MainActor
+    private static func testSkipForwardAtLastSegmentDoesNotCrash() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 2))
         service.play()
@@ -195,7 +207,8 @@ enum SpeechServiceTests {
 
     // MARK: - skipBackward()
 
-    private static func testSkipBackwardDecrementsIndex() -> TestResult {
+    @MainActor
+    private static func testSkipBackwardDecrementsIndex() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 4))
         service.play()
@@ -208,7 +221,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testSkipBackwardAtFirstSegmentClampsToZero() -> TestResult {
+    @MainActor
+    private static func testSkipBackwardAtFirstSegmentClampsToZero() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 3))
         service.play()
@@ -220,7 +234,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testSkipWhilePausedRemainspaused() -> TestResult {
+    @MainActor
+    private static func testSkipWhilePausedRemainspaused() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 4))
         service.play()
@@ -235,7 +250,8 @@ enum SpeechServiceTests {
 
     // MARK: - State field resets
 
-    private static func testLoadResetsCurrrentWordRange() -> TestResult {
+    @MainActor
+    private static func testLoadResetsCurrrentWordRange() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 2))
         service.play()
@@ -247,7 +263,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testLoadResetsProgress() -> TestResult {
+    @MainActor
+    private static func testLoadResetsProgress() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 3))
         service.load(makeSegments(count: 5))
@@ -258,7 +275,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testProgressTotalMatchesLoadedCount() -> TestResult {
+    @MainActor
+    private static func testProgressTotalMatchesLoadedCount() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 7))
         return TestResult(
@@ -270,7 +288,8 @@ enum SpeechServiceTests {
 
     // MARK: - Empty / whitespace segment skipping
 
-    private static func testEmptyPlainTextSegmentsSkipped() -> TestResult {
+    @MainActor
+    private static func testEmptyPlainTextSegmentsSkipped() async -> TestResult {
         var segments = makeSegments(count: 3)
         // Replace the first segment's text with an empty string.
         segments[0] = DialogueSegment(
@@ -293,7 +312,8 @@ enum SpeechServiceTests {
         )
     }
 
-    private static func testOnlyWhitespaceSegmentsSkipped() -> TestResult {
+    @MainActor
+    private static func testOnlyWhitespaceSegmentsSkipped() async -> TestResult {
         let segment = DialogueSegment(
             speaker: .hostB,
             plainText: "   \n\t  ",
@@ -312,7 +332,8 @@ enum SpeechServiceTests {
 
     // MARK: - Single segment
 
-    private static func testLoadWithSingleSegmentPlaysWithoutCrash() -> TestResult {
+    @MainActor
+    private static func testLoadWithSingleSegmentPlaysWithoutCrash() async -> TestResult {
         let service = SpeechService()
         service.load(makeSegments(count: 1))
         service.play()

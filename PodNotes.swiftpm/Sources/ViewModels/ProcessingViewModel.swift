@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftData
+import FoundationModels
 
 // MARK: - ProcessingStage
 
@@ -118,104 +119,349 @@ final class ProcessingViewModel {
 
     // MARK: - Private
 
-    private let simulatedDelays: [ProcessingStage: ClosedRange<Double>] = [
-        .extractingText:     0.8...1.4,
-        .analyzingStructure: 0.6...1.0,
-        .initializingModel:  1.2...1.8,
-        .generatingTopics:   1.5...2.2,
-        .generatingDialogue: 2.0...3.0,
-        .generatingSlides:   1.8...2.6,
-        .synthesizingAudio:  0.9...1.5,
-    ]
+    // Tracks the log entry ID for the currently in-progress stage so
+    // the pipeline can complete or fail it without a linear scan.
+    private var activeEntryID: UUID?
+
+    // Tracks which generation sub-stage we are visually displaying.
+    // Generation is a single service call but we present it as three
+    // sequential stages (topics, dialogue, slides) for visual clarity.
+    private var lastReportedGenerationStage: ProcessingStage?
 
     // MARK: - Pipeline
 
-    // module and context are optional so the VM can still be used
-    // standalone (debug views, tests) without a SwiftData stack.
-    func simulatePipeline(module: StudyModule? = nil, context: ModelContext? = nil) async {
-        logs         = []
-        isComplete   = false
-        errorMessage = nil
+    func runPipeline(module: StudyModule, context: ModelContext) async {
+        resetState()
 
-        // Mark the module as actively processing so the dashboard card
-        // updates immediately rather than staying stuck on .importing.
-        updateModuleStatus(.processing, module: module, context: context)
-
-        for stage in ProcessingStage.workingStages {
-            guard errorMessage == nil else { break }
-
-            currentStage  = stage
-            let entryID   = UUID()
-            let startDate = Date()
-
-            logs.append(LogEntry(
-                id:        entryID,
-                stage:     stage,
-                message:   stage.label,
-                status:    .inProgress,
-                startedAt: startDate
-            ))
-
-            print("[ProcessingViewModel] stage started: \(stage.label)")
-
-            let range = simulatedDelays[stage] ?? (1.0...1.5)
-            let delay = Double.random(in: range)
-
-            do {
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            } catch {
-                markFailed(id: entryID, startDate: startDate, error: error)
-                updateModuleStatus(.failed, module: module, context: context)
-                return
-            }
-
-            if let index = logs.firstIndex(where: { $0.id == entryID }) {
-                logs[index].status         = .completed
-                logs[index].elapsedSeconds = Date().timeIntervalSince(startDate)
-            }
-
-            print("[ProcessingViewModel] stage done: \(stage.label) in \(String(format: "%.1f", delay))s")
+        // If already processed, jump straight to complete.
+        if module.status == .ready && !module.dialogueSegments.isEmpty {
+            currentStage = .complete
+            isComplete = true
+            return
         }
 
-        guard errorMessage == nil else { return }
+        updateModuleStatus(.processing, module: module, context: context)
+
+        // --- Stage 1: Extract text from PDF ---
+
+        guard let pdfData = module.pdfData else {
+            failPipeline("No PDF data found. Please re-import the document.")
+            updateModuleStatus(.failed, module: module, context: context)
+            return
+        }
+
+        beginStage(.extractingText)
+
+        let extraction: PDFIngestionService.ExtractionResult
+        do {
+            let service = PDFIngestionService(ocrRenderScale: 2.0)
+            extraction = try service.extract(from: pdfData)
+        } catch {
+            failCurrentStage(error.localizedDescription)
+            updateModuleStatus(.failed, module: module, context: context)
+            return
+        }
+        completeCurrentStage()
+
+        // Improve the title if the PDF metadata has something better
+        // than the filename-derived one we set at import time.
+        let extractedTitle = extraction.suggestedTitle
+        if extractedTitle != "Untitled" && !extractedTitle.isEmpty {
+            module.title = extractedTitle
+        }
+        module.sourceText = extraction.fullText
+
+        // --- Stage 2: Analyze structure (chunking) ---
+
+        beginStage(.analyzingStructure)
+
+        let chunker = TextChunker()
+        let chunks = chunker.chunk(pageTexts: extraction.pageTexts)
+
+        if chunks.isEmpty {
+            failCurrentStage("No usable text could be extracted from the PDF.")
+            updateModuleStatus(.failed, module: module, context: context)
+            return
+        }
+        completeCurrentStage()
+
+        print("[Pipeline] Extracted \(extraction.pageTexts.count) pages into \(chunks.count) chunks")
+
+        // --- Stage 3: Check model availability ---
+
+        beginStage(.initializingModel)
+
+        let modelReady = checkModelAvailability()
+        if !modelReady {
+            appendWarning("Apple Intelligence unavailable. Using basic generation.")
+        }
+        completeCurrentStage()
+
+        // --- Stages 4-6: Generate content ---
+        // GenerationService handles topics, dialogue, and slides internally
+        // per chunk. We map chunk progress onto three visual stages so the
+        // terminal animation shows meaningful forward movement.
+
+        beginStage(.generatingTopics)
+        lastReportedGenerationStage = .generatingTopics
+
+        var allSegments: [DialogueSegment] = []
+        var allSlides: [Slide] = []
+        var usedFallback = false
+
+        if modelReady {
+            let result = await generateWithAI(
+                chunks: chunks,
+                moduleTitle: module.title
+            )
+            if let generated = result {
+                allSegments = generated.segments
+                allSlides = generated.slides
+            } else {
+                // AI generation failed part-way through or entirely.
+                // Fall back to deterministic generation.
+                appendWarning("AI generation failed. Falling back to basic mode.")
+                let fallback = FallbackGenerator().generate(from: chunks)
+                allSegments = fallback.segments
+                allSlides = fallback.slides
+                usedFallback = true
+            }
+        } else {
+            let fallback = FallbackGenerator().generate(from: chunks)
+            allSegments = fallback.segments
+            allSlides = fallback.slides
+            usedFallback = true
+        }
+
+        // Make sure all three generation stages show as completed.
+        advanceGenerationStagesTo(.generatingSlides)
+        completeCurrentStage()
+
+        if allSegments.isEmpty && allSlides.isEmpty {
+            failPipeline("Generation produced no content.")
+            updateModuleStatus(.failed, module: module, context: context)
+            return
+        }
+
+        print("[Pipeline] Generated \(allSegments.count) segments, \(allSlides.count) slides (fallback: \(usedFallback))")
+
+        // --- Stage 7: SSML enrichment ---
+
+        beginStage(.synthesizingAudio)
+
+        for i in allSegments.indices {
+            let enrichedSSML = SSMLBuilder.buildSSML(from: allSegments[i].plainText)
+            allSegments[i] = DialogueSegment(
+                id: allSegments[i].id,
+                speaker: allSegments[i].speaker,
+                plainText: allSegments[i].plainText,
+                ssmlText: enrichedSSML,
+                order: allSegments[i].order
+            )
+        }
+        completeCurrentStage()
+
+        // --- Save results to SwiftData ---
+
+        module.dialogueSegments = allSegments
+        module.slides = allSlides
+        saveContext(context)
+
+        updateModuleStatus(.ready, module: module, context: context)
+
+        // --- Complete ---
 
         currentStage = .complete
         logs.append(LogEntry(
-            id:             UUID(),
-            stage:          .complete,
-            message:        ProcessingStage.complete.label,
-            status:         .completed,
-            startedAt:      .now,
+            stage: .complete,
+            message: ProcessingStage.complete.label,
+            status: .completed,
             elapsedSeconds: 0
         ))
         isComplete = true
 
-        // Mark the module ready so the dashboard card shows the play button.
-        updateModuleStatus(.ready, module: module, context: context)
-        print("[ProcessingViewModel] pipeline complete, module status -> .ready")
+        print("[Pipeline] Complete. Module status -> .ready")
     }
 
-    func retry(module: StudyModule? = nil, context: ModelContext? = nil) async {
-        await simulatePipeline(module: module, context: context)
+    func retry(module: StudyModule, context: ModelContext) async {
+        await runPipeline(module: module, context: context)
     }
 
-    // MARK: - Private helpers
+    // MARK: - AI generation with progress tracking
+
+    private func generateWithAI(
+        chunks: [TextChunk],
+        moduleTitle: String
+    ) async -> GenerationResult? {
+        let service = GenerationService()
+        let totalChunks = chunks.count
+
+        do {
+            let result = try await service.generate(
+                from: chunks,
+                moduleTitle: moduleTitle
+            ) { [weak self] progress in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    switch progress {
+                    case .started:
+                        break
+                    case .chunkCompleted(let done, let total):
+                        self.handleChunkProgress(completed: done, total: total)
+                    case .finished:
+                        break
+                    case .failed(let error):
+                        print("[Pipeline] Generation progress error: \(error.localizedDescription)")
+                    }
+                }
+            }
+            return result
+        } catch {
+            print("[Pipeline] GenerationService threw: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    // Maps chunk completion count onto the three visual generation stages.
+    // With 6 chunks the progression looks like:
+    //   chunks 1-2 done  ->  .generatingTopics
+    //   chunks 3-4 done  ->  .generatingDialogue
+    //   chunks 5-6 done  ->  .generatingSlides
+    private func handleChunkProgress(completed: Int, total: Int) {
+        guard total > 0 else { return }
+        let fraction = Double(completed) / Double(total)
+
+        let targetStage: ProcessingStage
+        if fraction <= 0.34 {
+            targetStage = .generatingTopics
+        } else if fraction <= 0.67 {
+            targetStage = .generatingDialogue
+        } else {
+            targetStage = .generatingSlides
+        }
+
+        advanceGenerationStagesTo(targetStage)
+    }
+
+    // Advances from the current generation sub-stage to the target,
+    // completing intermediate stages along the way. Ensures stages
+    // only move forward, never backwards.
+    private func advanceGenerationStagesTo(_ target: ProcessingStage) {
+        let generationOrder: [ProcessingStage] = [
+            .generatingTopics,
+            .generatingDialogue,
+            .generatingSlides
+        ]
+
+        guard let currentIdx = generationOrder.firstIndex(of: lastReportedGenerationStage ?? .generatingTopics),
+              let targetIdx = generationOrder.firstIndex(of: target),
+              targetIdx > currentIdx
+        else { return }
+
+        // Complete every stage between current and target, then begin the target.
+        for i in (currentIdx + 1)...targetIdx {
+            completeCurrentStage()
+            beginStage(generationOrder[i])
+            lastReportedGenerationStage = generationOrder[i]
+        }
+    }
+
+    // MARK: - Model availability
+
+    private func checkModelAvailability() -> Bool {
+        let model = SystemLanguageModel.default
+        switch model.availability {
+        case .available:
+            return true
+        default:
+            return false
+        }
+    }
+
+    // MARK: - Stage lifecycle helpers
+
+    private func beginStage(_ stage: ProcessingStage) {
+        currentStage = stage
+        let entry = LogEntry(
+            stage: stage,
+            message: stage.label,
+            status: .inProgress
+        )
+        activeEntryID = entry.id
+        logs.append(entry)
+        print("[Pipeline] -> \(stage.label)")
+    }
+
+    private func completeCurrentStage() {
+        guard let id = activeEntryID,
+              let index = logs.firstIndex(where: { $0.id == id })
+        else { return }
+
+        logs[index].status = .completed
+        logs[index].elapsedSeconds = Date().timeIntervalSince(logs[index].startedAt)
+        activeEntryID = nil
+    }
+
+    private func failCurrentStage(_ message: String) {
+        guard let id = activeEntryID,
+              let index = logs.firstIndex(where: { $0.id == id })
+        else { return }
+
+        logs[index].status = .failed
+        logs[index].elapsedSeconds = Date().timeIntervalSince(logs[index].startedAt)
+        activeEntryID = nil
+        errorMessage = message
+    }
+
+    private func failPipeline(_ message: String) {
+        // If there is an active stage, fail it. Otherwise just record the error.
+        if activeEntryID != nil {
+            failCurrentStage(message)
+        } else {
+            errorMessage = message
+        }
+    }
+
+    private func appendWarning(_ message: String) {
+        // Insert a completed log entry as a non-stage informational line.
+        // Reuses the current stage so it groups visually with the active work.
+        let warning = LogEntry(
+            stage: currentStage,
+            message: message,
+            status: .completed,
+            elapsedSeconds: 0
+        )
+        logs.append(warning)
+        print("[Pipeline] Warning: \(message)")
+    }
+
+    // MARK: - SwiftData helpers
 
     private func updateModuleStatus(
         _ status: ProcessingStatus,
-        module: StudyModule?,
-        context: ModelContext?
+        module: StudyModule,
+        context: ModelContext
     ) {
-        guard let module, let context else { return }
         module.status = status
-        try? context.save()
+        saveContext(context)
     }
 
-    private func markFailed(id: UUID, startDate: Date, error: Error) {
-        if let index = logs.firstIndex(where: { $0.id == id }) {
-            logs[index].status         = .failed
-            logs[index].elapsedSeconds = Date().timeIntervalSince(startDate)
+    private func saveContext(_ context: ModelContext) {
+        do {
+            try context.save()
+        } catch {
+            print("[Pipeline] SwiftData save error: \(error.localizedDescription)")
         }
-        errorMessage = error.localizedDescription
+    }
+
+    // MARK: - Reset
+
+    private func resetState() {
+        logs = []
+        currentStage = .extractingText
+        isComplete = false
+        errorMessage = nil
+        activeEntryID = nil
+        lastReportedGenerationStage = nil
     }
 }

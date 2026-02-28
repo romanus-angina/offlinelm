@@ -42,20 +42,24 @@ struct PromptTestRunnerView: View {
             .navigationTitle("Test Runner")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Run") { runAllSuites() }
+                    Button("Run") {
+                        Task {
+                            await runAllSuites()
+                        }
+                    }
                 }
             }
         }
     }
 
-    private func runAllSuites() {
+    private func runAllSuites() async {
         let slideDeckResults = SlideDeckViewModelTests.runAll().map { r in
             RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
         }
         let processingResults = ProcessingViewModelTests.runAll().map { r in
             RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
         }
-        let speechResults = SpeechServiceTests.runAll().map { r in
+        let speechResults = await SpeechServiceTests.runAll().map { r in
             RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
         }
         let ssmlResults = SSMLBuilderTests.runAll().map { r in

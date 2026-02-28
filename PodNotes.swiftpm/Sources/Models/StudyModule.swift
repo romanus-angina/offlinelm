@@ -13,6 +13,11 @@ final class StudyModule {
     var createdAt: Date
     var status: ProcessingStatus
 
+    // Raw PDF bytes kept so the module can be re-processed without
+    // asking the user to re-import. Typical study PDFs are 1-10 MB
+    // which is fine for on-device SwiftData storage.
+    @Attribute var pdfData: Data?
+
     // Codable collections live in JSON blobs; SwiftData stores them as Data.
     @Attribute var dialogueSegmentsData: Data
     @Attribute var slidesData: Data
@@ -37,6 +42,7 @@ final class StudyModule {
         sourceText: String = "",
         createdAt: Date = .now,
         status: ProcessingStatus = .importing,
+        pdfData: Data? = nil,
         dialogueSegments: [DialogueSegment] = [],
         slides: [Slide] = []
     ) {
@@ -45,6 +51,7 @@ final class StudyModule {
         self.sourceText = sourceText
         self.createdAt = createdAt
         self.status = status
+        self.pdfData = pdfData
         self.dialogueSegmentsData = (try? JSONEncoder().encode(dialogueSegments)) ?? Data()
         self.slidesData = (try? JSONEncoder().encode(slides)) ?? Data()
     }

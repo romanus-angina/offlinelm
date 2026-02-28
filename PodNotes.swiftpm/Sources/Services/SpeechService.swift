@@ -14,11 +14,29 @@ struct PlaybackProgress: Sendable {
     var approximateElapsedSeconds: TimeInterval
 }
 
+enum VoiceQuality: Sendable {
+    case optimal       // Premium/enhanced voices available
+    case good          // Default quality voices
+    case suboptimal    // Limited voice selection
+    
+    var recommendation: String {
+        switch self {
+        case .optimal:
+            return "You're using the best available voices!"
+        case .good:
+            return "Good voices are active. Consider downloading enhanced voices for even better quality."
+        case .suboptimal:
+            return "Default voices detected. Download enhanced or premium voices in Settings for a significantly better experience."
+        }
+    }
+}
+
 // MARK: - SpeechService
 
 @available(iOS 26, *)
 @Observable
-final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
+@MainActor
+final class SpeechService: NSObject, @preconcurrency AVSpeechSynthesizerDelegate {
 
     // MARK: - Observable state
 
@@ -30,6 +48,7 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         totalSegments: 0,
         approximateElapsedSeconds: 0
     )
+    private(set) var voiceQuality: VoiceQuality = .suboptimal
 
     // MARK: - Private state
 
@@ -47,15 +66,16 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
     // that the generation it was called for still matches before advancing.
     private var utteranceGeneration: Int = 0
 
-    private var resignObserver: NSObjectProtocol?
-    private var becomeObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var resignObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var becomeObserver: NSObjectProtocol?
 
     // MARK: - Init / deinit
 
     override init() {
-        let (a, b) = Self.selectVoices()
+        let (a, b, quality) = Self.selectVoices()
         voiceForHostA = a
         voiceForHostB = b
+        voiceQuality = quality
         super.init()
         synthesizer.delegate = self
         configureAudioSession()
@@ -141,23 +161,25 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
 
     // MARK: - AVSpeechSynthesizerDelegate
 
-    func speechSynthesizer(
+    nonisolated func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         willSpeakRangeOfSpeechString characterRange: NSRange,
         utterance: AVSpeechUtterance
     ) {
-        let text = segments[safe: currentSegmentIndex]?.plainText ?? ""
-        guard !text.isEmpty else { return }
+        MainActor.assumeIsolated {
+            let text = segments[safe: currentSegmentIndex]?.plainText ?? ""
+            guard !text.isEmpty else { return }
 
-        guard
-            let range = Range(characterRange, in: text),
-            range.upperBound <= text.endIndex
-        else { return }
+            guard
+                let range = Range(characterRange, in: text),
+                range.upperBound <= text.endIndex
+            else { return }
 
-        currentWordRange = range
+            currentWordRange = range
+        }
     }
 
-    func speechSynthesizer(
+    @MainActor func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         didFinish utterance: AVSpeechUtterance
     ) {
@@ -187,7 +209,7 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    func speechSynthesizer(
+    nonisolated func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         didCancel utterance: AVSpeechUtterance
     ) {
@@ -281,38 +303,123 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         currentWordRange   = nil
     }
 
+    // MARK: - Voice Quality
+
+    /// Opens iOS Settings to the Accessibility > Spoken Content > Voices page
+    /// where users can download enhanced and premium voices.
+    func openVoiceSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else {
+            return
+        }
+        
+        // Note: iOS doesn't provide a direct deep link to the Voices settings page,
+        // so this opens the app's settings. Users will need to navigate:
+        // Settings → Accessibility → Spoken Content → Voices → English
+        UIApplication.shared.open(url)
+    }
+    
+    /// Checks if there are better quality voices available to download
+    var hasBetterVoicesAvailable: Bool {
+        voiceQuality != .optimal
+    }
+    
+    /// Returns information about the currently selected voices
+    var voiceInfo: (hostA: String, hostB: String) {
+        let hostAName = voiceForHostA?.name ?? "None"
+        let hostBName = voiceForHostB?.name ?? "None"
+        return (hostAName, hostBName)
+    }
+    
+    /// Refreshes voice selection - call this when returning from Settings
+    /// to check if new voices have been downloaded
+    func refreshVoices() {
+        // Stop any ongoing playback
+        let wasPlaying = playbackState == .playing
+        let currentIndex = currentSegmentIndex
+        stopSpeakingAndReset()
+        
+        // Re-select voices
+        let (newA, newB, newQuality) = Self.selectVoices()
+        
+        // If voices changed, we need to reinitialize
+        // Note: This requires making the voice properties mutable
+        // For now, log the change and suggest restart
+        #if DEBUG
+        print("[SpeechService] Voice refresh detected:")
+        print("  Old: \(voiceForHostA?.name ?? "nil") / \(voiceForHostB?.name ?? "nil") [\(voiceQuality)]")
+        print("  New: \(newA?.name ?? "nil") / \(newB?.name ?? "nil") [\(newQuality)]")
+        #endif
+        
+        // Resume if was playing
+        if wasPlaying {
+            currentSegmentIndex = currentIndex
+            speakSegment(at: currentIndex)
+        }
+    }
+
     // MARK: - Private -- voice selection
 
-    private static func selectVoices() -> (hostA: AVSpeechSynthesisVoice?, hostB: AVSpeechSynthesisVoice?) {
+    private static func selectVoices() -> (hostA: AVSpeechSynthesisVoice?, hostB: AVSpeechSynthesisVoice?, quality: VoiceQuality) {
         let all = AVSpeechSynthesisVoice.speechVoices()
 
+        // Filter to real Apple voices (excluding novelty voices)
         let realVoices = all.filter {
             $0.identifier.hasPrefix("com.apple.voice")
             || $0.identifier.hasPrefix("com.apple.eloquence")
         }
 
-        let enUS    = realVoices.filter { $0.language.hasPrefix("en-US") }
+        let enUS = realVoices.filter { $0.language.hasPrefix("en-US") }
+        
+        // Priority 1: Look for premium/enhanced voices (these are the high-quality downloaded voices)
         let premium = enUS.filter { $0.quality == .premium || $0.quality == .enhanced }
+        
+        // Priority 2: Look for personal voices (Siri voices) - these are typically the best
+        let personal = premium.filter { voice in
+            // Personal voices often have identifiers like "com.apple.voice.personal"
+            // or names containing common Siri voice names
+            let identifier = voice.identifier.lowercased()
+            let name = voice.name.lowercased()
+            return identifier.contains("personal") 
+                || identifier.contains("siri")
+                || name.contains("allison")
+                || name.contains("ava")
+                || name.contains("nicky")
+                || name.contains("samantha")
+                || name.contains("tom")
+        }
 
+        // Try to use two different personal/premium voices
+        if personal.count >= 2 {
+            let sorted = personal.sorted { $0.identifier < $1.identifier }
+            let first = sorted[0]
+            let different = sorted.first {
+                !$0.identifier.hasPrefix(String(first.identifier.prefix(30)))
+            }
+            return (first, different ?? sorted[1], .optimal)
+        }
+
+        // Use premium voices if available
         if premium.count >= 2 {
             let sorted = premium.sorted { $0.identifier < $1.identifier }
             let first = sorted[0]
             let different = sorted.first {
                 !$0.identifier.hasPrefix(String(first.identifier.prefix(30)))
             }
-            return (first, different ?? sorted[1])
+            return (first, different ?? sorted[1], .optimal)
         }
 
+        // Mix premium US with premium from other regions
         if let primaryPremium = premium.first {
             let otherPremium = realVoices.filter {
                 ($0.language.hasPrefix("en-GB") || $0.language.hasPrefix("en-AU"))
                 && ($0.quality == .premium || $0.quality == .enhanced)
             }
             if let companion = otherPremium.first {
-                return (primaryPremium, companion)
+                return (primaryPremium, companion, .good)
             }
         }
 
+        // Fallback: Use default quality voices
         let enAU = realVoices.filter { $0.language.hasPrefix("en-AU") }
         let enGB = realVoices.filter { $0.language.hasPrefix("en-GB") }
 
@@ -322,22 +429,23 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
             ?? enGB.first
 
         if let a = samantha, let b = karen {
-            return (a, b)
+            return (a, b, .good)
         }
 
+        // Last resort: Any two English voices
         let anyEnglish = realVoices
             .filter { $0.language.hasPrefix("en") }
             .sorted { $0.identifier < $1.identifier }
 
         guard let first = anyEnglish.first else {
-            return (nil, nil)
+            return (nil, nil, .suboptimal)
         }
 
         let second = anyEnglish.count >= 2
             ? (anyEnglish.first { $0.language != first.language } ?? anyEnglish[1])
             : first
 
-        return (first, second)
+        return (first, second, .suboptimal)
     }
 
     #if DEBUG

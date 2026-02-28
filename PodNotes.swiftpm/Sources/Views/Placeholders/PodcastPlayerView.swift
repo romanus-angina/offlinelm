@@ -26,6 +26,16 @@ struct PodcastPlayerView: View {
 
             VStack(spacing: 0) {
                 header
+                
+                // Voice quality banner
+                VoiceQualityBannerView(
+                    voiceQuality: viewModel.speech.voiceQuality,
+                    onOpenSettings: {
+                        viewModel.speech.openVoiceSettings()
+                    }
+                )
+                .padding(.top, AppTheme.Spacing.xs)
+                
                 waveformSection
                 transcript
                 controls

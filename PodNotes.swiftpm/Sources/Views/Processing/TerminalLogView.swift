@@ -115,22 +115,7 @@ struct TerminalLogView: View {
 
     let logs: [LogEntry]
 
-    // Only show entries that are still in progress, have failed, or are the
-    // final completion marker. Completed working-stage entries vanish so the
-    // terminal stays focused on what is happening right now.
-    private var visibleLogs: [LogEntry] {
-        logs.filter { entry in
-            switch entry.status {
-            case .inProgress: return true
-            case .failed:     return true
-            case .completed:  return entry.stage == .complete
-            }
-        }
-    }
-
-    // Fires both when a new entry is appended (count goes up) and when a
-    // working stage completes and disappears from visibleLogs (completedCount
-    // goes up). Watching only logs.count would miss the removal trigger.
+    // Tracks whenever a stage completes so we can auto-scroll.
     private var completedCount: Int {
         logs.filter { $0.status == .completed }.count
     }
@@ -139,7 +124,7 @@ struct TerminalLogView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(visibleLogs) { entry in
+                    ForEach(logs) { entry in
                         TerminalLogRowView(entry: entry)
                             .id(entry.id)
                             .transition(
@@ -149,7 +134,7 @@ struct TerminalLogView: View {
                                 )
                             )
 
-                        if entry.stage != .complete {
+                        if entry.id != logs.last?.id {
                             Divider()
                                 .background(TerminalPalette.border.opacity(0.4))
                                 .padding(.horizontal, AppTheme.Spacing.sm)
@@ -157,7 +142,7 @@ struct TerminalLogView: View {
                     }
                 }
                 .padding(.vertical, AppTheme.Spacing.sm)
-                .animation(AppTheme.Motion.standard, value: completedCount)
+                .animation(AppTheme.Motion.standard, value: logs.count)
             }
             .scrollIndicators(.hidden)
             .background(TerminalPalette.background)
@@ -166,8 +151,14 @@ struct TerminalLogView: View {
                 RoundedRectangle(cornerRadius: AppTheme.Radius.md)
                     .strokeBorder(TerminalPalette.border, lineWidth: 1)
             )
+            .onChange(of: logs.count) { _, _ in
+                guard let last = logs.last else { return }
+                withAnimation(AppTheme.Motion.gentle) {
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                }
+            }
             .onChange(of: completedCount) { _, _ in
-                guard let last = visibleLogs.last else { return }
+                guard let last = logs.last else { return }
                 withAnimation(AppTheme.Motion.gentle) {
                     proxy.scrollTo(last.id, anchor: .bottom)
                 }
@@ -179,7 +170,7 @@ struct TerminalLogView: View {
 // MARK: - Previews
 
 @available(iOS 26, *)
-#Preview("Mid-pipeline — two done, one running") {
+#Preview("Mid-pipeline - two done, one running") {
     let entries: [LogEntry] = [
         LogEntry(
             stage: .extractingText,
@@ -213,6 +204,42 @@ struct TerminalLogView: View {
 #Preview("Complete") {
     let entries: [LogEntry] = [
         LogEntry(
+            stage: .extractingText,
+            message: "Extracting text from PDF...",
+            status: .completed,
+            elapsedSeconds: 0.9
+        ),
+        LogEntry(
+            stage: .analyzingStructure,
+            message: "Analyzing document structure...",
+            status: .completed,
+            elapsedSeconds: 0.6
+        ),
+        LogEntry(
+            stage: .initializingModel,
+            message: "Initializing language model...",
+            status: .completed,
+            elapsedSeconds: 0.3
+        ),
+        LogEntry(
+            stage: .generatingTopics,
+            message: "Identifying key topics...",
+            status: .completed,
+            elapsedSeconds: 4.2
+        ),
+        LogEntry(
+            stage: .generatingDialogue,
+            message: "Writing podcast script...",
+            status: .completed,
+            elapsedSeconds: 8.7
+        ),
+        LogEntry(
+            stage: .generatingSlides,
+            message: "Building study slides...",
+            status: .completed,
+            elapsedSeconds: 5.1
+        ),
+        LogEntry(
             stage: .synthesizingAudio,
             message: "Preparing audio synthesis...",
             status: .completed,
@@ -230,7 +257,7 @@ struct TerminalLogView: View {
         AppTheme.Colors.backgroundPrimary.ignoresSafeArea()
         TerminalLogView(logs: entries)
             .padding(AppTheme.Spacing.md)
-            .frame(height: 120)
+            .frame(height: 400)
     }
     .preferredColorScheme(.dark)
 }

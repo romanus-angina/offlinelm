@@ -4,6 +4,7 @@ import SwiftUI
 struct ModuleCardView: View {
     let module: StudyModule
     let namespace: Namespace.ID
+    let onTap: () -> Void
     let onPlay: () -> Void
 
     @State private var isPressed = false
@@ -20,7 +21,12 @@ struct ModuleCardView: View {
         .matchedGeometryEffect(id: "card-bg-\(module.id)", in: namespace)
         .scaleEffect(isPressed ? 0.97 : 1.0)
         .animation(AppTheme.Motion.snappy, value: isPressed)
-        ._onButtonGesture(pressing: { pressing in isPressed = pressing }, perform: {})
+        .contentShape(Rectangle())
+        .onLongPressGesture(minimumDuration: 0, pressing: { pressing in
+            isPressed = pressing
+        }, perform: {
+            onTap()
+        })
     }
 
     private var cardHeader: some View {
@@ -55,8 +61,14 @@ struct ModuleCardView: View {
         }
     }
 
+    // A standalone Button — not nested inside any parent Button's
+    // label, so its gesture recognizer owns its hit region cleanly.
+    // Taps on this circle fire onPlay; taps anywhere else on the
+    // card fall through to onLongPressGesture which fires onTap.
     private var playButton: some View {
-        Button(action: onPlay) {
+        Button {
+            onPlay()
+        } label: {
             ZStack {
                 Circle()
                     .fill(AppTheme.Gradients.primary)
@@ -67,7 +79,7 @@ struct ModuleCardView: View {
                     .offset(x: 1)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlayButtonStyle())
         .shadow(color: AppTheme.Colors.glowAna1, radius: 8, x: 0, y: 4)
     }
 
@@ -80,5 +92,19 @@ struct ModuleCardView: View {
             }
         }
         .frame(height: 18)
+    }
+}
+
+// MARK: - Play button style
+
+// Gives the play circle its own press animation and defines its
+// hit-test shape as a circle so only taps within the round area
+// trigger play. Everything outside falls through to the card.
+private struct PlayButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
+            .animation(AppTheme.Motion.snappy, value: configuration.isPressed)
+            .contentShape(Circle())
     }
 }

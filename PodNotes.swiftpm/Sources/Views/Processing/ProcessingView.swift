@@ -39,7 +39,7 @@ struct ProcessingView: View {
         .navigationBarHidden(true)
         .task {
             haptic.prepare()
-            await vm.simulatePipeline(module: module, context: context)
+            await vm.runPipeline(module: module, context: context)
         }
         .onChange(of: vm.isComplete) { _, complete in
             guard complete else { return }

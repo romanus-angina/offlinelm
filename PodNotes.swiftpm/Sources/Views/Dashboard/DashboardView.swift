@@ -36,8 +36,6 @@ struct DashboardView: View {
             allowedContentTypes: [.pdf],
             allowsMultipleSelection: false
         ) { result in
-            // fileImporter returns Result<[URL], Error> even when allowsMultipleSelection is false.
-            // Convert to Result<URL, Error> by taking the first URL when present.
             let singleResult: Result<URL, any Error> = result.flatMap { urls in
                 if let first = urls.first {
                     return .success(first)
@@ -64,16 +62,13 @@ struct DashboardView: View {
                     ModuleCardView(
                         module: module,
                         namespace: heroNamespace,
-                        onPlay: { router.showPodcast(for: module) }
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        switch module.status {
-                        case .ready:                 router.showPodcast(for: module)
-                        case .importing, .processing: router.showProcessing(for: module)
-                        case .failed:                router.showProcessing(for: module)
+                        onTap: {
+                            navigateToModule(module)
+                        },
+                        onPlay: {
+                            router.showPodcast(for: module)
                         }
-                    }
+                    )
                     .contextMenu {
                         Button(role: .destructive) {
                             viewModel.delete(module, context: context)
@@ -87,6 +82,18 @@ struct DashboardView: View {
             .padding(.vertical, AppTheme.Spacing.lg)
         }
         .scrollIndicators(.hidden)
+    }
+
+    // Routes to the right destination based on the module's current status.
+    private func navigateToModule(_ module: StudyModule) {
+        switch module.status {
+        case .ready:
+            router.showPodcast(for: module)
+        case .importing, .processing:
+            router.showProcessing(for: module)
+        case .failed:
+            router.showProcessing(for: module)
+        }
     }
 
     @ToolbarContentBuilder

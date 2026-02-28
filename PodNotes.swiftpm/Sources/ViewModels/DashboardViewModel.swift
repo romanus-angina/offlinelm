@@ -51,6 +51,14 @@ final class DashboardViewModel {
         let secured = url.startAccessingSecurityScopedResource()
         defer { if secured { url.stopAccessingSecurityScopedResource() } }
 
+        // Read raw PDF bytes while the security-scoped resource is active.
+        // This data is stored on the module so the pipeline can process it
+        // after navigation, without needing the original URL.
+        guard let data = try? Data(contentsOf: url) else {
+            showError("Import failed", "Could not read the selected PDF file.")
+            return nil
+        }
+
         let name = url
             .deletingPathExtension()
             .lastPathComponent
@@ -59,7 +67,8 @@ final class DashboardViewModel {
 
         let module = StudyModule(
             title: name.isEmpty ? "Untitled" : name,
-            status: .importing
+            status: .importing,
+            pdfData: data
         )
         context.insert(module)
 
