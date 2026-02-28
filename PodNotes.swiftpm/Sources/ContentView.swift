@@ -47,7 +47,11 @@ struct ContentView: View {
                 SlideCardDebugView()
                     .tabItem { Label("SlideCard", systemImage: "rectangle.on.rectangle") }
                     .tag(1)
+                SlideDeckView(viewModel: SlideDeckViewModel.mock)
+                    .tabItem { Label("SlideDeck", systemImage: "menucard") }
+                    .tag(2)
             }
+            .environment(AppRouter())
             .preferredColorScheme(.dark)
         }
         #endif
@@ -63,9 +67,10 @@ struct ContentView: View {
         case .podcast(let module):
             PodcastPlayerView(module: module)
         case .slides(let module):
-            NavigationStack {
-                SlidesView(module: module)
-            }
+            // No NavigationStack here. SlideDeckView owns its own
+            // header and back button; a wrapper would create a phantom
+            // nav bar at the top of the screen.
+            SlidesView(module: module)
         case nil:
             emptyDetail
         }

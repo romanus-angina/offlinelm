@@ -6,16 +6,18 @@ import SwiftUI
 struct PodcastPlayerView: View {
 
     @State private var viewModel: PodcastViewModel
-
     @Environment(AppRouter.self) private var router
+    private let module: StudyModule?
 
     init(module: StudyModule) {
         _viewModel = State(initialValue: PodcastViewModel(module: module))
+        self.module = module
     }
 
     // Preview-only init — internal so ContentView can use .mock without a real module.
     init(viewModel: PodcastViewModel) {
         _viewModel = State(initialValue: viewModel)
+        self.module = nil
     }
 
     var body: some View {
@@ -162,9 +164,9 @@ struct PodcastPlayerView: View {
 
     // MARK: - Slides sheet helper
 
-    // The sheet needs a StudyModule but PodcastViewModel.mock uses the
-    // preview init path (no module). Guard against that case gracefully.
-    private var moduleForSlides: StudyModule? { nil }
+    // Returns nil for the preview path (no real module) so the sheet
+    // body stays empty rather than crashing.
+    private var moduleForSlides: StudyModule? { module }
 }
 
 // MARK: - Preview
