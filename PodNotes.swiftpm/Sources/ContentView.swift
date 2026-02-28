@@ -7,7 +7,8 @@ struct ContentView: View {
     @State private var router = AppRouter()
 
     #if DEBUG
-    @State private var isShowingTests = false
+    @State private var isShowingDebug = false
+    @State private var debugTab = 0
     #endif
 
     var body: some View {
@@ -16,26 +17,46 @@ struct ContentView: View {
                 DashboardView()
                     .environment(router)
             } detail: {
-                detailView
+                destinationView
                     .environment(router)
             }
 
             #if DEBUG
-            debugButton
+            Button {
+                isShowingDebug = true
+            } label: {
+                Text("Tests")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(AppTheme.Colors.backgroundPrimary)
+                    .padding(.horizontal, AppTheme.Spacing.sm)
+                    .padding(.vertical, AppTheme.Spacing.xs)
+                    .background(AppTheme.Colors.ana4)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, AppTheme.Spacing.md)
+            .padding(.bottom, AppTheme.Spacing.md)
             #endif
         }
         #if DEBUG
-        .sheet(isPresented: $isShowingTests) {
-            PromptTestRunnerView()
-                .preferredColorScheme(.dark)
+        .sheet(isPresented: $isShowingDebug) {
+            TabView(selection: $debugTab) {
+                PromptTestRunnerView()
+                    .tabItem { Label("Tests", systemImage: "checkmark.circle") }
+                    .tag(0)
+                SlideCardDebugView()
+                    .tabItem { Label("SlideCard", systemImage: "rectangle.on.rectangle") }
+                    .tag(1)
+            }
+            .preferredColorScheme(.dark)
         }
         #endif
     }
 
-    // MARK: - Detail routing
+    // MARK: - Destination routing
 
     @ViewBuilder
-    private var detailView: some View {
+    private var destinationView: some View {
         switch router.destination {
         case .processing(let module):
             ProcessingView(module: module)
@@ -46,11 +67,11 @@ struct ContentView: View {
                 SlidesView(module: module)
             }
         case nil:
-            detailPlaceholder
+            emptyDetail
         }
     }
 
-    private var detailPlaceholder: some View {
+    private var emptyDetail: some View {
         ZStack {
             AppTheme.Colors.backgroundPrimary.ignoresSafeArea()
             VStack(spacing: AppTheme.Spacing.lg) {
@@ -63,25 +84,4 @@ struct ContentView: View {
             }
         }
     }
-
-    // MARK: - Debug
-
-    #if DEBUG
-    private var debugButton: some View {
-        Button {
-            isShowingTests = true
-        } label: {
-            Text("Tests")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(AppTheme.Colors.backgroundPrimary)
-                .padding(.horizontal, AppTheme.Spacing.sm)
-                .padding(.vertical, AppTheme.Spacing.xs)
-                .background(AppTheme.Colors.ana4)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .padding(.leading, AppTheme.Spacing.md)
-        .padding(.bottom, AppTheme.Spacing.md)
-    }
-    #endif
 }
