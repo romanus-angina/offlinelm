@@ -3,36 +3,25 @@ import Observation
 import SwiftUI
 
 // MARK: - Player colour palette
-// Kept here so every player view imports a single source of truth.
-// These live alongside the ViewModel rather than polluting AppTheme,
-// which belongs to the rest of the app.
+// Thin aliases over AppTheme so every player view has a single import point.
+// Speaker accent colours delegate to Speaker.accentColor (ana1 / ana5).
 
+@available(iOS 26, *)
 enum PlayerPalette {
-    // Background — deep navy, not the app's near-black.
-    static let background      = Color(red: 0.039, green: 0.055, blue: 0.102) // #0A0E1A
-    static let backgroundLift  = Color(red: 0.063, green: 0.086, blue: 0.149) // slight lift for cards
-
-    // Host A — electric blue
-    static let hostA           = Color(red: 0.231, green: 0.510, blue: 0.965) // #3B82F6
-    static let hostAGlow       = Color(red: 0.231, green: 0.510, blue: 0.965).opacity(0.35)
-
-    // Host B — warm amber
-    static let hostB           = Color(red: 0.961, green: 0.620, blue: 0.043) // #F59E0B
-    static let hostBGlow       = Color(red: 0.961, green: 0.620, blue: 0.043).opacity(0.35)
-
-    // Utility
-    static let textPrimary     = Color(red: 0.94, green: 0.96, blue: 1.00)
-    static let textSecondary   = Color(red: 0.94, green: 0.96, blue: 1.00).opacity(0.55)
-    static let textTertiary    = Color(red: 0.94, green: 0.96, blue: 1.00).opacity(0.30)
-    static let border          = Color.white.opacity(0.07)
-    static let controlSurface  = Color(red: 0.10, green: 0.13, blue: 0.20)
+    static let background     = AppTheme.Colors.backgroundPrimary
+    static let backgroundLift = AppTheme.Colors.backgroundSecondary
+    static let textPrimary    = AppTheme.Colors.textPrimary
+    static let textSecondary  = AppTheme.Colors.textSecondary
+    static let textTertiary   = AppTheme.Colors.textTertiary
+    static let border         = AppTheme.Colors.borderSubtle
+    static let controlSurface = AppTheme.Colors.backgroundTertiary
 
     static func accent(for speaker: Speaker) -> Color {
-        speaker == .hostA ? hostA : hostB
+        speaker.accentColor
     }
 
     static func glow(for speaker: Speaker) -> Color {
-        speaker == .hostA ? hostAGlow : hostBGlow
+        speaker.accentColor.opacity(0.40)
     }
 }
 
