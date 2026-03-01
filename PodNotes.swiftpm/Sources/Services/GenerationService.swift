@@ -81,6 +81,8 @@ struct GenerationService: Sendable {
                     title: entry.title,
                     keyPoints: entry.keyPoints,
                     quizQuestion: entry.quizQuestion,
+                    choices: entry.choices,
+                    correctAnswerIndex: entry.correctAnswerIndex,
                     quizAnswer: entry.quizAnswer,
                     order: allSlides.count
                 )
@@ -252,4 +254,3 @@ struct GenerationService: Sendable {
         return "<speak><prosody rate=\"medium\">\(escaped)</prosody></speak>"
     }
 }
-

@@ -26,11 +26,21 @@ struct FallbackGenerator: Sendable {
             let title = sentences.first ?? "Section \(chunk.order + 1)"
             let keyPoints = Array(sentences.dropFirst().prefix(3))
 
+            let correctAnswer = sentences.first ?? "See your notes for details."
+            let fallbackChoices = [
+                correctAnswer,
+                "Not enough information to determine",
+                "This topic is not covered in the notes",
+                "None of the above"
+            ]
+
             let slide = Slide(
                 title: title,
                 keyPoints: keyPoints.isEmpty ? ["Review this section."] : keyPoints,
                 quizQuestion: "What is the main idea of this section?",
-                quizAnswer: sentences.first ?? "See your notes for details.",
+                choices: fallbackChoices,
+                correctAnswerIndex: 0,
+                quizAnswer: correctAnswer,
                 order: chunk.order
             )
             slides.append(slide)

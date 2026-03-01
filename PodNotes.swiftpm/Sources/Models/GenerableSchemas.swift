@@ -63,5 +63,13 @@ struct SlideEntry: Sendable {
     var keyPoints: [String]
 
     var quizQuestion: String
+
+    @Guide(description: "Exactly 4 answer options. One must be correct; the other 3 must be plausible distractors.")
+    var choices: [String]
+
+    @Guide(description: "0-based index of the correct choice within the choices array")
+    var correctAnswerIndex: Int
+
+    @Guide(description: "Brief explanation of why the correct answer is right")
     var quizAnswer: String
 }
