@@ -85,16 +85,9 @@ struct VoiceDownloadGuideView: View {
             )
 
             benefitRow(
-                icon: "brain.head.profile",
-                title: "Easier to Follow",
-                description: "Your brain spends less effort parsing robotic speech and more effort absorbing the content.",
-                color: AppTheme.Colors.ana5
-            )
-
-            benefitRow(
                 icon: "ear",
                 title: "Comfortable for Long Sessions",
-                description: "Smoother audio means you can listen through a full study session without fatigue.",
+                description: "Smoother audio means it's easier for you to listen to the podcasts without losing focus.",
                 color: AppTheme.Colors.ana4
             )
         }
@@ -122,7 +115,7 @@ struct VoiceDownloadGuideView: View {
 
             instructionStep(
                 number: 2,
-                text: "Head to Accessibility, then Spoken Content, then Voices"
+                text: "Head to Accessibility > Spoken Content > Voices"
             )
 
             instructionStep(
@@ -132,7 +125,7 @@ struct VoiceDownloadGuideView: View {
 
             instructionStep(
                 number: 4,
-                text: "Come back here -- the app picks up the new voices automatically"
+                text: "Return to the app and select the premium voice you downloaded"
             )
         }
         .padding(AppTheme.Spacing.md)
@@ -160,8 +153,8 @@ struct VoiceDownloadGuideView: View {
 
             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                 tipRow("Each voice is around 200-500 MB, so Wi-Fi is your friend here.")
-                tipRow("There is no single best voice -- try a couple and see which one you prefer for long study sessions.")
-                tipRow("You can always remove voices you don't use to reclaim storage.")
+                tipRow("Try a couple and see which one you prefer for long study sessions.")
+                tipRow("You can always remove voices you don't use to free up storage.")
             }
         }
         .padding(AppTheme.Spacing.md)
