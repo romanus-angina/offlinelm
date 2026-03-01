@@ -30,7 +30,7 @@ struct ModuleHubView: View {
         }
         .navigationBarHidden(true)
         .sheet(isPresented: $isShowingChat) {
-            ChatPlaceholderView()
+            ChatView(module: module)
         }
     }
 

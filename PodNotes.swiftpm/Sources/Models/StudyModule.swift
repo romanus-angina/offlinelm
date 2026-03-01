@@ -1,3 +1,5 @@
+// StudyModule.swift
+
 import Foundation
 import SwiftData
 
@@ -25,6 +27,9 @@ final class StudyModule {
     // Quiz answer persistence: maps slide UUID string to selected choice index.
     @Attribute var quizAnswersData: Data = Data()
 
+    // Chat message persistence: stores the full conversation history.
+    @Attribute var chatMessagesData: Data = Data()
+
     // MARK: - Computed accessors
 
     var dialogueSegments: [DialogueSegment] {
@@ -42,6 +47,11 @@ final class StudyModule {
         set { quizAnswersData = (try? JSONEncoder().encode(newValue)) ?? Data() }
     }
 
+    var chatMessages: [ChatMessage] {
+        get { (try? JSONDecoder().decode([ChatMessage].self, from: chatMessagesData)) ?? [] }
+        set { chatMessagesData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+
     // MARK: - Init
 
     init(
@@ -52,7 +62,8 @@ final class StudyModule {
         status: ProcessingStatus = .importing,
         pdfData: Data? = nil,
         dialogueSegments: [DialogueSegment] = [],
-        slides: [Slide] = []
+        slides: [Slide] = [],
+        chatMessages: [ChatMessage] = []
     ) {
         self.id = id
         self.title = title
@@ -63,6 +74,7 @@ final class StudyModule {
         self.dialogueSegmentsData = (try? JSONEncoder().encode(dialogueSegments)) ?? Data()
         self.slidesData = (try? JSONEncoder().encode(slides)) ?? Data()
         self.quizAnswersData = Data()
+        self.chatMessagesData = (try? JSONEncoder().encode(chatMessages)) ?? Data()
     }
 }
 
