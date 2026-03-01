@@ -122,7 +122,7 @@ struct VoiceDownloadGuideView: View {
 
             instructionStep(
                 number: 2,
-                text: "Head to Accessibility > Spoken Content > Voices"
+                text: "Head to Accessibility, then Spoken Content, then Voices"
             )
 
             instructionStep(
@@ -132,7 +132,7 @@ struct VoiceDownloadGuideView: View {
 
             instructionStep(
                 number: 4,
-                text: "Return to the app"
+                text: "Come back here -- the app picks up the new voices automatically"
             )
         }
         .padding(AppTheme.Spacing.md)
@@ -160,8 +160,8 @@ struct VoiceDownloadGuideView: View {
 
             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                 tipRow("Each voice is around 200-500 MB, so Wi-Fi is your friend here.")
-                tipRow("Try a couple and see which one you prefer for long study sessions.")
-                tipRow("You can always remove voices you don't use to free up storage.")
+                tipRow("There is no single best voice -- try a couple and see which one you prefer for long study sessions.")
+                tipRow("You can always remove voices you don't use to reclaim storage.")
             }
         }
         .padding(AppTheme.Spacing.md)

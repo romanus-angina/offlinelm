@@ -42,12 +42,13 @@ enum ProcessingStatus: String, Codable, CaseIterable, Sendable {
 
 // MARK: - Speaker
 
-enum Speaker: String, Codable, CaseIterable, Sendable {
-    case hostA = "Alex"
-    case hostB = "Sam"
+enum Speaker: String, Codable, CaseIterable {
+    case hostA = "Amani"
+    case hostB = "Zuri"
 
+    /// The name displayed in transcripts, prompts, and UI.
     var displayName: String { rawValue }
-
+    
     var icon: String {
         switch self {
         case .hostA: return "person.fill"
@@ -55,11 +56,27 @@ enum Speaker: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    @available(iOS 26, *)
+    /// The accent color for this speaker in transcript and waveform views.
     var accentColor: Color {
         switch self {
-        case .hostA: return AppTheme.Colors.ana1
-        case .hostB: return AppTheme.Colors.ana5
+        case .hostA: return AppTheme.Colors.ana1   // electric blue
+        case .hostB: return AppTheme.Colors.ana5   // warm amber
+        }
+    }
+
+    /// Role description used in LLM prompts and onboarding.
+    var roleDescription: String {
+        switch self {
+        case .hostA: return "introduces and explains concepts"
+        case .hostB: return "asks clarifying questions and makes analogies"
+        }
+    }
+
+    /// Short label for settings UI.
+    var settingsLabel: String {
+        switch self {
+        case .hostA: return "Amani (Host A)"
+        case .hostB: return "Zuri (Host B)"
         }
     }
 }
