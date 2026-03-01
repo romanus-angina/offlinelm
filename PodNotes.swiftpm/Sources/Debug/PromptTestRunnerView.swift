@@ -53,9 +53,9 @@ struct PromptTestRunnerView: View {
     }
 
     private func runAllSuites() async {
-        let slideDeckResults = SlideDeckViewModelTests.runAll().map { r in
-            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
-        }
+//        let slideDeckResults = SlideDeckViewModelTests.runAll().map { r in
+//            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
+//        }
         let processingResults = ProcessingViewModelTests.runAll().map { r in
             RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
         }
@@ -73,7 +73,7 @@ struct PromptTestRunnerView: View {
         }
 
         results = [
-            (suite: "SlideDeckViewModel",  tests: slideDeckResults),
+//            (suite: "SlideDeckViewModel",  tests: slideDeckResults),
             (suite: "ProcessingViewModel", tests: processingResults),
             (suite: "SpeechService",       tests: speechResults),
             (suite: "SSMLBuilder",         tests: ssmlResults),

@@ -22,6 +22,9 @@ final class StudyModule {
     @Attribute var dialogueSegmentsData: Data
     @Attribute var slidesData: Data
 
+    // Quiz answer persistence: maps slide UUID string to selected choice index.
+    @Attribute var quizAnswersData: Data = Data()
+
     // MARK: - Computed accessors
 
     var dialogueSegments: [DialogueSegment] {
@@ -32,6 +35,11 @@ final class StudyModule {
     var slides: [Slide] {
         get { (try? JSONDecoder().decode([Slide].self, from: slidesData)) ?? [] }
         set { slidesData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+
+    var quizAnswers: [String: Int] {
+        get { (try? JSONDecoder().decode([String: Int].self, from: quizAnswersData)) ?? [:] }
+        set { quizAnswersData = (try? JSONEncoder().encode(newValue)) ?? Data() }
     }
 
     // MARK: - Init
@@ -54,6 +62,7 @@ final class StudyModule {
         self.pdfData = pdfData
         self.dialogueSegmentsData = (try? JSONEncoder().encode(dialogueSegments)) ?? Data()
         self.slidesData = (try? JSONEncoder().encode(slides)) ?? Data()
+        self.quizAnswersData = Data()
     }
 }
 
@@ -73,5 +82,41 @@ extension StudyModule {
     var estimatedDurationMinutes: Int {
         let words = dialogueSegments.reduce(0) { $0 + $1.plainText.split(separator: " ").count }
         return max(1, Int(ceil(Double(words) / 150.0)))
+    }
+
+    // MARK: - Quiz helpers
+
+    /// Number of quiz questions answered so far.
+    var quizAnsweredCount: Int {
+        quizAnswers.count
+    }
+
+    /// Total number of quiz questions available.
+    var quizTotalCount: Int {
+        slides.count
+    }
+
+    /// Number of correctly answered quiz questions.
+    var quizCorrectCount: Int {
+        let sortedSlides = slides.sorted()
+        return sortedSlides.reduce(0) { total, slide in
+            guard let picked = quizAnswers[slide.id.uuidString] else { return total }
+            return total + (picked == slide.correctAnswerIndex ? 1 : 0)
+        }
+    }
+
+    /// Whether the quiz has been started but not finished.
+    var quizInProgress: Bool {
+        quizAnsweredCount > 0 && quizAnsweredCount < quizTotalCount
+    }
+
+    /// Whether every quiz question has been answered.
+    var quizCompleted: Bool {
+        quizTotalCount > 0 && quizAnsweredCount >= quizTotalCount
+    }
+
+    /// Clears all saved quiz answers.
+    func resetQuiz() {
+        quizAnswers = [:]
     }
 }

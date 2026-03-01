@@ -51,9 +51,9 @@ struct ContentView: View {
                 PromptTestRunnerView()
                     .tabItem { Label("Tests", systemImage: "checkmark.circle") }
                     .tag(0)
-                SlideCardDebugView()
-                    .tabItem { Label("SlideCard", systemImage: "rectangle.on.rectangle") }
-                    .tag(1)
+//                SlideCardDebugView()
+//                    .tabItem { Label("SlideCard", systemImage: "rectangle.on.rectangle") }
+//                    .tag(1)
                 SlideDeckView(viewModel: SlideDeckViewModel.mock)
                     .tabItem { Label("SlideDeck", systemImage: "menucard") }
                     .tag(2)

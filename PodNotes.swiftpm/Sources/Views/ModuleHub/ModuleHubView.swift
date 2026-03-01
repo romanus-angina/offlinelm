@@ -107,8 +107,8 @@ struct ModuleHubView: View {
             }
 
             HubActionCard(
-                icon: "rectangle.on.rectangle",
-                label: "Slides",
+                icon: "text.book.closed",
+                label: "Review",
                 isDisabled: module.slides.isEmpty
             ) {
                 router.push(.slides(module))

@@ -16,10 +16,6 @@ final class SlideDeckViewModel {
     /// Bound directly to the TabView page index.
     var currentIndex: Int = 0
 
-    /// Tracks which slide IDs have had their quiz answer revealed.
-    /// Using a Set means reveal state is O(1) to read and write.
-    private(set) var revealedAnswers: Set<UUID> = []
-
     // MARK: - Computed
 
     var currentSlide: Slide? {
@@ -57,22 +53,6 @@ final class SlideDeckViewModel {
     func goTo(index: Int) {
         guard slides.indices.contains(index) else { return }
         currentIndex = index
-    }
-
-    // MARK: - Quiz reveal
-
-    func revealAnswer(for slide: Slide) {
-        revealedAnswers.insert(slide.id)
-    }
-
-    func isAnswerRevealed(for slide: Slide) -> Bool {
-        revealedAnswers.contains(slide.id)
-    }
-
-    // When the user navigates away and returns, the answer stays revealed.
-    // Call this if you want a "reset quiz" feature later.
-    func hideAllAnswers() {
-        revealedAnswers.removeAll()
     }
 }
 

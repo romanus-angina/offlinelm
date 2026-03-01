@@ -68,16 +68,8 @@ struct SlideDeckView: View {
     private var deckPager: some View {
         TabView(selection: $vm.currentIndex) {
             ForEach(vm.slides.indices, id: \.self) { i in
-                DeckPage(
-                    slide: vm.slides[i],
-                    isRevealed: vm.isAnswerRevealed(for: vm.slides[i]),
-                    onReveal: {
-                        withAnimation(AppTheme.Motion.standard) {
-                            vm.revealAnswer(for: vm.slides[i])
-                        }
-                    }
-                )
-                .tag(i)
+                DeckPage(slide: vm.slides[i])
+                    .tag(i)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
@@ -166,21 +158,18 @@ struct SlideDeckView: View {
 private struct DeckPage: View {
 
     let slide: Slide
-    let isRevealed: Bool
-    let onReveal: () -> Void
 
     var body: some View {
-        ScrollView {
-            SlideCardView(
-                slide: slide,
-                isAnswerRevealed: isRevealed,
-                onReveal: onReveal
-            )
-            .frame(maxWidth: 600)
-            .padding(.horizontal, AppTheme.Spacing.md)
-            .padding(.vertical, AppTheme.Spacing.lg)
+        GeometryReader { geo in
+            ScrollView {
+                SlideCardView(slide: slide)
+                    .frame(maxWidth: 600)
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .padding(.vertical, AppTheme.Spacing.lg)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: geo.size.height)
+            }
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
-        .frame(maxWidth: .infinity)
     }
 }

@@ -5,10 +5,12 @@ struct FlashcardView: View {
 
     let module: StudyModule
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
 
     @State private var currentIndex = 0
-    @State private var revealedIDs: Set<UUID> = []
+    @State private var selectedAnswers: [String: Int] = [:]
     @State private var showCompletion = false
+    @State private var hasLoaded = false
 
     private var slides: [Slide] {
         module.slides.sorted()
@@ -19,14 +21,21 @@ struct FlashcardView: View {
         return slides[currentIndex]
     }
 
-    private var isCurrentRevealed: Bool {
+    private var isCurrentAnswered: Bool {
         guard let slide = currentSlide else { return false }
-        return revealedIDs.contains(slide.id)
+        return selectedAnswers[slide.id.uuidString] != nil
     }
 
     private var progressFraction: Double {
         guard !slides.isEmpty else { return 0 }
-        return Double(revealedIDs.count) / Double(slides.count)
+        return Double(selectedAnswers.count) / Double(slides.count)
+    }
+
+    private var correctCount: Int {
+        slides.reduce(0) { total, slide in
+            guard let picked = selectedAnswers[slide.id.uuidString] else { return total }
+            return total + (picked == slide.correctAnswerIndex ? 1 : 0)
+        }
     }
 
     var body: some View {
@@ -42,6 +51,45 @@ struct FlashcardView: View {
             }
         }
         .navigationBarHidden(true)
+        .onAppear {
+            guard !hasLoaded else { return }
+            hasLoaded = true
+            loadSavedProgress()
+        }
+    }
+
+    // MARK: - Load / Save
+
+    private func loadSavedProgress() {
+        selectedAnswers = module.quizAnswers
+
+        // If all questions are already answered, show completion.
+        if !slides.isEmpty && selectedAnswers.count >= slides.count {
+            showCompletion = true
+            return
+        }
+
+        // Resume at the first unanswered question.
+        if let firstUnanswered = slides.firstIndex(where: {
+            selectedAnswers[$0.id.uuidString] == nil
+        }) {
+            currentIndex = firstUnanswered
+        }
+    }
+
+    private func saveProgress() {
+        module.quizAnswers = selectedAnswers
+        try? context.save()
+    }
+
+    private func resetQuiz() {
+        withAnimation(AppTheme.Motion.standard) {
+            selectedAnswers.removeAll()
+            currentIndex = 0
+            showCompletion = false
+            module.resetQuiz()
+            try? context.save()
+        }
     }
 
     // MARK: - Flashcard content
@@ -119,21 +167,22 @@ struct FlashcardView: View {
         TabView(selection: $currentIndex) {
             ForEach(slides.indices, id: \.self) { index in
                 let slide = slides[index]
-                let revealed = revealedIDs.contains(slide.id)
+                let picked = selectedAnswers[slide.id.uuidString]
 
                 ScrollView {
                     FlashcardCardView(
                         slide: slide,
                         cardNumber: index + 1,
                         totalCards: slides.count,
-                        isRevealed: revealed,
-                        onReveal: {
+                        selectedChoiceIndex: picked,
+                        onSelectChoice: { choiceIndex in
                             withAnimation(AppTheme.Motion.standard) {
-                                revealedIDs.insert(slide.id)
+                                selectedAnswers[slide.id.uuidString] = choiceIndex
                             }
-                            // Check if all revealed
-                            if revealedIDs.count == slides.count {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            saveProgress()
+
+                            if selectedAnswers.count == slides.count {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                                     withAnimation(AppTheme.Motion.standard) {
                                         showCompletion = true
                                     }
@@ -177,13 +226,16 @@ struct FlashcardView: View {
             // Dot indicators
             HStack(spacing: AppTheme.Spacing.xs) {
                 ForEach(slides.indices, id: \.self) { i in
-                    let isAnswered = revealedIDs.contains(slides[i].id)
+                    let answered = selectedAnswers[slides[i].id.uuidString] != nil
+                    let correct = selectedAnswers[slides[i].id.uuidString] == slides[i].correctAnswerIndex
                     Capsule()
                         .fill(
                             i == currentIndex
                                 ? AppTheme.Colors.ana4
-                                : isAnswered
-                                    ? AppTheme.Colors.ana4.opacity(0.4)
+                                : answered
+                                    ? (correct
+                                        ? AppTheme.Colors.ana4.opacity(0.5)
+                                        : AppTheme.Colors.statusFailed.opacity(0.5))
                                     : AppTheme.Colors.textTertiary.opacity(0.3)
                         )
                         .frame(
@@ -257,20 +309,25 @@ struct FlashcardView: View {
                     .foregroundStyle(AppTheme.Colors.textSecondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
+
+                Text("You got \(correctCount) out of \(slides.count) correct")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundStyle(
+                        correctCount == slides.count
+                            ? AppTheme.Colors.ana4
+                            : AppTheme.Colors.ana5
+                    )
+                    .padding(.top, AppTheme.Spacing.xs)
             }
 
             HStack(spacing: AppTheme.Spacing.md) {
                 Button {
-                    withAnimation(AppTheme.Motion.standard) {
-                        revealedIDs.removeAll()
-                        currentIndex = 0
-                        showCompletion = false
-                    }
+                    resetQuiz()
                 } label: {
                     HStack(spacing: AppTheme.Spacing.xs) {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.system(size: 14, weight: .semibold))
-                        Text("Study Again")
+                        Text("Try Again")
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                     }
                     .foregroundStyle(AppTheme.Colors.ana4)
@@ -325,8 +382,13 @@ private struct FlashcardCardView: View {
     let slide: Slide
     let cardNumber: Int
     let totalCards: Int
-    let isRevealed: Bool
-    let onReveal: () -> Void
+    let selectedChoiceIndex: Int?
+    let onSelectChoice: (Int) -> Void
+
+    @State private var hintsExpanded = false
+
+    private var hasAnswered: Bool { selectedChoiceIndex != nil }
+    private var isCorrect: Bool { selectedChoiceIndex == slide.correctAnswerIndex }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -354,40 +416,31 @@ private struct FlashcardCardView: View {
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
 
-                // Key points hint
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                    Text("HINTS")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(AppTheme.Colors.textTertiary)
-                        .tracking(1.2)
-
-                    ForEach(Array(slide.keyPoints.enumerated()), id: \.offset) { index, point in
-                        HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.sm) {
-                            Text("\(index + 1)")
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                .foregroundStyle(
-                                    index.isMultiple(of: 2)
-                                        ? AppTheme.Colors.ana4
-                                        : AppTheme.Colors.ana5
-                                )
-                                .frame(width: 16, alignment: .trailing)
-
-                            Text(point)
-                                .font(.system(size: 14))
-                                .foregroundStyle(AppTheme.Colors.textSecondary)
-                                .lineSpacing(3)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
+                // Collapsible hints
+                hintsSection
 
                 // Divider
                 Rectangle()
                     .fill(AppTheme.Colors.borderMedium)
                     .frame(height: 1)
 
-                // Answer section
-                if isRevealed {
+                // Choices
+                VStack(spacing: AppTheme.Spacing.sm) {
+                    ForEach(Array(slide.choices.enumerated()), id: \.offset) { index, choice in
+                        ChoiceButton(
+                            index: index,
+                            text: choice,
+                            isCorrectAnswer: index == slide.correctAnswerIndex,
+                            selectedIndex: selectedChoiceIndex,
+                            onTap: {
+                                onSelectChoice(index)
+                            }
+                        )
+                    }
+                }
+
+                // Answer explanation (shown after answering)
+                if hasAnswered {
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                         Text("ANSWER")
                             .font(.system(size: 9, weight: .bold, design: .monospaced))
@@ -411,51 +464,202 @@ private struct FlashcardCardView: View {
                             )
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
-                    Button(action: onReveal) {
-                        HStack(spacing: AppTheme.Spacing.sm) {
-                            Image(systemName: "eye")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text("Reveal Answer")
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        }
-                        .foregroundStyle(AppTheme.Colors.ana5)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(
-                            RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                                .fill(AppTheme.Colors.ana5.opacity(0.08))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                                        .strokeBorder(AppTheme.Colors.ana5.opacity(0.25), lineWidth: 1)
-                                )
-                        )
-                    }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
             .padding(.bottom, AppTheme.Spacing.lg)
         }
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.13, green: 0.14, blue: 0.13),
-                            Color(red: 0.09, green: 0.10, blue: 0.09)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-        )
+        .cardSurface(cornerRadius: AppTheme.Radius.xl)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xl))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
-                .strokeBorder(AppTheme.Colors.borderSubtle, lineWidth: 1)
-        )
         .shadow(color: Color.black.opacity(0.35), radius: 24, x: 0, y: 12)
         .frame(maxWidth: 600)
+    }
+
+    // MARK: - Collapsible hints
+
+    private var hintsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(AppTheme.Motion.snappy) {
+                    hintsExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    Image(systemName: "lightbulb.max")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(AppTheme.Colors.ana5)
+
+                    Text("HINTS")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(AppTheme.Colors.textTertiary)
+                        .tracking(1.2)
+
+                    Spacer()
+
+                    Image(systemName: hintsExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(AppTheme.Colors.textTertiary)
+                }
+                .padding(.vertical, AppTheme.Spacing.sm)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if hintsExpanded {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    ForEach(Array(slide.keyPoints.enumerated()), id: \.offset) { index, point in
+                        HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.sm) {
+                            Text("\(index + 1)")
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundStyle(
+                                    index.isMultiple(of: 2)
+                                        ? AppTheme.Colors.ana4
+                                        : AppTheme.Colors.ana5
+                                )
+                                .frame(width: 16, alignment: .trailing)
+
+                            Text(point)
+                                .font(.system(size: 14))
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                .lineSpacing(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(.bottom, AppTheme.Spacing.sm)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+}
+
+// MARK: - ChoiceButton
+
+@available(iOS 26, *)
+private struct ChoiceButton: View {
+
+    let index: Int
+    let text: String
+    let isCorrectAnswer: Bool
+    let selectedIndex: Int?
+    let onTap: () -> Void
+
+    private static let letters = ["A", "B", "C", "D"]
+
+    private var isSelected: Bool {
+        selectedIndex == index
+    }
+
+    private var isRevealed: Bool {
+        selectedIndex != nil
+    }
+
+    // MARK: - Visual state
+
+    private var fillColor: Color {
+        guard isRevealed else {
+            return AppTheme.Colors.backgroundTertiary
+        }
+        if isSelected && isCorrectAnswer {
+            return AppTheme.Colors.ana4.opacity(0.15)
+        }
+        if isSelected && !isCorrectAnswer {
+            return AppTheme.Colors.statusFailed.opacity(0.15)
+        }
+        if !isSelected && isCorrectAnswer {
+            return AppTheme.Colors.ana4.opacity(0.15)
+        }
+        return AppTheme.Colors.backgroundTertiary
+    }
+
+    private var borderColor: Color {
+        guard isRevealed else { return Color.clear }
+        if isCorrectAnswer {
+            return AppTheme.Colors.ana4.opacity(0.4)
+        }
+        if isSelected {
+            return AppTheme.Colors.statusFailed.opacity(0.4)
+        }
+        return Color.clear
+    }
+
+    private var rowOpacity: Double {
+        guard isRevealed else { return 1.0 }
+        if isSelected || isCorrectAnswer { return 1.0 }
+        return 0.35
+    }
+
+    private var statusIcon: String? {
+        guard isRevealed else { return nil }
+        if isSelected && isCorrectAnswer { return "checkmark" }
+        if isSelected && !isCorrectAnswer { return "xmark" }
+        if !isSelected && isCorrectAnswer { return "checkmark" }
+        return nil
+    }
+
+    private var statusIconColor: Color {
+        isCorrectAnswer ? AppTheme.Colors.ana4 : AppTheme.Colors.statusFailed
+    }
+
+    private var letterColor: Color {
+        guard isRevealed else { return AppTheme.Colors.textPrimary }
+        if isCorrectAnswer { return AppTheme.Colors.ana4 }
+        if isSelected { return AppTheme.Colors.statusFailed }
+        return AppTheme.Colors.textTertiary
+    }
+
+    private var letterBackground: Color {
+        guard isRevealed else { return AppTheme.Colors.backgroundSecondary }
+        if isCorrectAnswer { return AppTheme.Colors.ana4.opacity(0.2) }
+        if isSelected { return AppTheme.Colors.statusFailed.opacity(0.2) }
+        return AppTheme.Colors.backgroundSecondary
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                // Letter badge
+                Text(Self.letters[index])
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundStyle(letterColor)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(letterBackground)
+                    )
+
+                // Choice text
+                Text(text)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: AppTheme.Spacing.xs)
+
+                // Status icon
+                if let icon = statusIcon {
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(statusIconColor)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .padding(.horizontal, AppTheme.Spacing.md)
+            .padding(.vertical, AppTheme.Spacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 48)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                    .fill(fillColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                            .strokeBorder(borderColor, lineWidth: 1.5)
+                    )
+            )
+            .opacity(rowOpacity)
+        }
+        .buttonStyle(.plain)
+        .disabled(isRevealed)
     }
 }
