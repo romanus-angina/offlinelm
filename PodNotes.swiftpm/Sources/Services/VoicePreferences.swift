@@ -121,32 +121,23 @@ final class VoicePreferences {
     // MARK: - Auto selection (same logic SpeechService used before)
 
     private func autoSelectVoice(for speaker: Speaker) -> AVSpeechSynthesisVoice? {
-        let voices = availableEnglishVoices
+            let voices = availableEnglishVoices
 
-        // Try to find two distinct voices -- one for each host.
-        // Host A gets the first best voice, Host B gets the second distinct one.
-        let bestVoices = voices.prefix(10)
-        let grouped = Dictionary(grouping: bestVoices) { $0.name.components(separatedBy: " ").first ?? $0.name }
-        let distinctNames = grouped.keys.sorted()
+            switch speaker {
+            case .hostA:
+                if let samantha = voices.first(where: { $0.name == "Samantha" }) {
+                    return samantha
+                }
+                return voices.first
 
-        switch speaker {
-        case .hostA:
-            if let firstName = distinctNames.first,
-               let voice = grouped[firstName]?.first {
-                return voice
+            case .hostB:
+                if let karen = voices.first(where: { $0.name == "Karen" }) {
+                    return karen
+                }
+                if voices.count >= 2 { return voices[1] }
+                return voices.first
             }
-            return voices.first
-        case .hostB:
-            if distinctNames.count >= 2,
-               let secondName = distinctNames.dropFirst().first,
-               let voice = grouped[secondName]?.first {
-                return voice
-            }
-            // If only one distinct name exists, just use the second voice in the list.
-            if voices.count >= 2 { return voices[1] }
-            return voices.first
         }
-    }
 
     private func isNoveltyVoice(_ voice: AVSpeechSynthesisVoice) -> Bool {
         let noveltyNames = ["Bells", "Cellos", "Organ", "Wobble", "Zarvox",
