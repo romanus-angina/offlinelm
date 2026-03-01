@@ -57,7 +57,7 @@ struct PodcastPlayerView: View {
         HStack(spacing: AppTheme.Spacing.md) {
             Button {
                 viewModel.speech.pause()
-                router.goToDashboard()
+                router.popBack()
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .semibold))

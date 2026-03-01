@@ -19,24 +19,6 @@ struct MainTabView: View {
                 }
             }
 
-            Tab(AppTab.podcasts.rawValue, systemImage: AppTab.podcasts.icon, value: .podcasts) {
-                NavigationStack(path: $router.podcastsPath) {
-                    PodcastsListView()
-                        .navigationDestination(for: AppDestination.self) { dest in
-                            destinationView(for: dest)
-                        }
-                }
-            }
-
-            Tab(AppTab.study.rawValue, systemImage: AppTab.study.icon, value: .study) {
-                NavigationStack(path: $router.studyPath) {
-                    StudyTabView()
-                        .navigationDestination(for: AppDestination.self) { dest in
-                            destinationView(for: dest)
-                        }
-                }
-            }
-
             Tab(AppTab.settings.rawValue, systemImage: AppTab.settings.icon, value: .settings) {
                 NavigationStack {
                     AppSettingsView()
@@ -53,6 +35,8 @@ struct MainTabView: View {
         switch destination {
         case .processing(let module):
             ProcessingView(module: module)
+        case .hub(let module):
+            ModuleHubView(module: module)
         case .podcast(let module):
             PodcastPlayerView(module: module)
         case .slides(let module):

@@ -102,21 +102,15 @@ struct DashboardView: View {
                                 navigateToModule(module)
                             },
                             onPlay: {
-                                router.showPodcast(for: module)
+                                router.showHub(for: module)
                             }
                         )
                         .contextMenu {
                             if module.isPlayable {
                                 Button {
-                                    router.showPodcast(for: module)
+                                    router.showHub(for: module)
                                 } label: {
-                                    Label("Listen", systemImage: "headphones")
-                                }
-
-                                Button {
-                                    router.showSlides(for: module)
-                                } label: {
-                                    Label("Study Slides", systemImage: "rectangle.on.rectangle")
+                                    Label("Open", systemImage: "rectangle.on.rectangle")
                                 }
 
                                 Divider()
@@ -189,7 +183,7 @@ struct DashboardView: View {
     private func navigateToModule(_ module: StudyModule) {
         switch module.status {
         case .ready:
-            router.showPodcast(for: module)
+            router.showHub(for: module)
         case .importing, .processing:
             router.showProcessing(for: module)
         case .failed:
