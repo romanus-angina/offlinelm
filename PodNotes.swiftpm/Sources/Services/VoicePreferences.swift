@@ -1,35 +1,6 @@
 import SwiftUI
 import AVFoundation
 
-// MARK: - AppearanceMode
-
-/// Controls light/dark theme preference.
-/// Persisted via @AppStorage as a raw string.
-@available(iOS 26, *)
-enum AppearanceMode: String, CaseIterable, Identifiable {
-    case system = "System"
-    case light  = "Light"
-    case dark   = "Dark"
-
-    var id: String { rawValue }
-
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .system: return nil
-        case .light:  return .light
-        case .dark:   return .dark
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .system: return "circle.lefthalf.filled"
-        case .light:  return "sun.max.fill"
-        case .dark:   return "moon.fill"
-        }
-    }
-}
-
 // MARK: - VoicePreferences
 
 /// Reads/writes the user's chosen AVSpeechSynthesisVoice identifiers
@@ -54,26 +25,31 @@ final class VoicePreferences {
     @ObservationIgnored
     @AppStorage("voiceID_hostB") private var storedHostBID: String = ""
 
-    /// Appearance mode raw value.
-    @ObservationIgnored
-    @AppStorage("appearanceMode") private var storedAppearance: String = AppearanceMode.system.rawValue
-
     // MARK: - Public interface
 
     var hostAVoiceID: String {
-        get { storedHostAID }
-        set { storedHostAID = newValue }
-    }
+            get {
+                access(keyPath: \.hostAVoiceID)
+                return storedHostAID
+            }
+            set {
+                withMutation(keyPath: \.hostAVoiceID) {
+                    storedHostAID = newValue
+                }
+            }
+        }
 
     var hostBVoiceID: String {
-        get { storedHostBID }
-        set { storedHostBID = newValue }
-    }
-
-    var appearanceMode: AppearanceMode {
-        get { AppearanceMode(rawValue: storedAppearance) ?? .system }
-        set { storedAppearance = newValue.rawValue }
-    }
+            get {
+                access(keyPath: \.hostBVoiceID)
+                return storedHostBID
+            }
+            set {
+                withMutation(keyPath: \.hostBVoiceID) {
+                    storedHostBID = newValue
+                }
+            }
+        }
 
     // MARK: - Available voices
 

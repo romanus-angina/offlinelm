@@ -44,6 +44,7 @@ struct ContentView: View {
             }
             #endif
         }
+    
         #if DEBUG
         .sheet(isPresented: $isShowingDebug) {
             TabView(selection: $debugTab) {

@@ -15,7 +15,6 @@ enum AppTheme {
 
     enum Colors {
         // Backgrounds — neutral dark grey, no colour cast.
-        // Will become white/light grey in light mode when that work begins.
         static let backgroundPrimary   = Color(red: 0.06, green: 0.06, blue: 0.06)
         static let backgroundSecondary = Color(red: 0.10, green: 0.10, blue: 0.10)
         static let backgroundTertiary  = Color(red: 0.15, green: 0.15, blue: 0.15)

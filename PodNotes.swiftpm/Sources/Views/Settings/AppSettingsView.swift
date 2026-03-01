@@ -8,11 +8,6 @@ struct AppSettingsView: View {
     @State private var showingVoiceGuide = false
     @State private var expandedPicker: Speaker? = nil
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = true
-    @AppStorage("appearanceMode") private var appearanceModeRaw: String = AppearanceMode.system.rawValue
-
-    private var currentAppearance: AppearanceMode {
-        AppearanceMode(rawValue: appearanceModeRaw) ?? .system
-    }
 
     var body: some View {
         ZStack {
@@ -21,7 +16,6 @@ struct AppSettingsView: View {
             ScrollView {
                 VStack(spacing: AppTheme.Spacing.lg) {
                     voiceSection
-                    appearanceSection
                     aboutSection
                 }
                 .padding(.horizontal, AppTheme.Spacing.md)
@@ -97,57 +91,7 @@ struct AppSettingsView: View {
             }
         }
     }
-
-    // MARK: - Appearance section
-
-    private var appearanceSection: some View {
-        SettingsSectionView(title: "Appearance") {
-            VStack(spacing: AppTheme.Spacing.sm) {
-                HStack(spacing: 0) {
-                    ForEach(AppearanceMode.allCases) { mode in
-                        Button {
-                            withAnimation(AppTheme.Motion.snappy) {
-                                appearanceModeRaw = mode.rawValue
-                            }
-                        } label: {
-                            VStack(spacing: AppTheme.Spacing.xs) {
-                                Image(systemName: mode.icon)
-                                    .font(.system(size: 18))
-                                Text(mode.rawValue)
-                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            }
-                            .foregroundStyle(
-                                currentAppearance == mode
-                                    ? AppTheme.Colors.ana4
-                                    : AppTheme.Colors.textTertiary
-                            )
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, AppTheme.Spacing.md)
-                            .background(
-                                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                                    .fill(
-                                        currentAppearance == mode
-                                            ? AppTheme.Colors.ana4.opacity(0.12)
-                                            : Color.clear
-                                    )
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                                    .strokeBorder(
-                                        currentAppearance == mode
-                                            ? AppTheme.Colors.ana4.opacity(0.3)
-                                            : Color.clear,
-                                        lineWidth: 1
-                                    )
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-    }
-
+    
     // MARK: - About section
 
     private var aboutSection: some View {
