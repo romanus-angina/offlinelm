@@ -8,6 +8,9 @@ import FoundationModels
 struct TopicList: Sendable {
     @Guide(description: "5 to 8 core topics extracted strictly from the provided text. No external facts.")
     var topics: [Topic]
+
+    @Guide(description: "The single most surprising, counterintuitive, or consequential claim from these notes, in one sentence. Used to open the podcast.")
+    var hookIdea: String
 }
 
 @available(iOS 26.0, *)
@@ -25,7 +28,7 @@ struct Topic: Sendable {
 @available(iOS 26.0, *)
 @Generable
 struct PodcastScript: Sendable {
-    @Guide(description: "12 to 20 dialogue turns alternating between Alex and Sam")
+    @Guide(description: "12 to 20 dialogue turns alternating between hostA and hostB")
     var turns: [DialogueTurn]
 }
 
@@ -34,15 +37,15 @@ struct PodcastScript: Sendable {
 struct DialogueTurn: Sendable {
     var speaker: TurnSpeaker
 
-    @Guide(description: "1-3 conversational sentences. No filler like 'Certainly!' or 'Great question!'")
+    @Guide(description: "1-3 conversational sentences. No hollow filler like 'Certainly!' or 'Great question!'")
     var text: String
 }
 
 @available(iOS 26.0, *)
 @Generable
 enum TurnSpeaker: String, Sendable {
-    case alex
-    case sam
+    case hostA
+    case hostB
 }
 
 // MARK: - Call 3: Slide generation

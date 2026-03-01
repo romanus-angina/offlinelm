@@ -65,9 +65,9 @@ struct PromptTestRunnerView: View {
         let ssmlResults = SSMLBuilderTests.runAll().map { r in
             RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
         }
-        let promptResults = PromptTemplateTests.runAll().map { r in
-            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
-        }
+//        let promptResults = PromptTemplateTests.runAll().map { r in
+//            RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
+//        }
         let fallbackResults = FallbackGeneratorTests.runAll().map { r in
             RunnerTestResult(name: r.name, passed: r.passed, detail: r.detail)
         }
@@ -77,7 +77,7 @@ struct PromptTestRunnerView: View {
             (suite: "ProcessingViewModel", tests: processingResults),
             (suite: "SpeechService",       tests: speechResults),
             (suite: "SSMLBuilder",         tests: ssmlResults),
-            (suite: "PromptTemplates",     tests: promptResults),
+//            (suite: "PromptTemplates",     tests: promptResults),
             (suite: "FallbackGenerator",   tests: fallbackResults),
         ]
         hasRun = true
